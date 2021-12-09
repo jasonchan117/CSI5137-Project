@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from dataset import *
 from sklearn.model_selection import KFold
+from model import *
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, default = 'promise_nfr', help='The dataset file')
 parser.add_argument('--resume', type=str, default = '',  help='resume model')
@@ -18,18 +19,21 @@ parser.add_argument('--workers', type=int, default = 5, help='number of data loa
 opt = parser.parse_args()
 
 kf = KFold(n_splits=opt.kf)
+dataset = Dataset(opt)
+child_label_des = dataset.getLabelDes()
 for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
-    train_subset = torch.utils.data.dataset.Subset(Dataset(opt), train_index)
-    val_subset = torch.utils.data.dataset.Subset(Dataset(opt), val_index)
-    dataloader = torch.utils.data.DataLoader(train_subset, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
+
+    train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
+    val_subset = torch.utils.data.dataset.Subset(dataset, val_index)
+    traindataloader = torch.utils.data.DataLoader(train_subset, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
     testdataloader = torch.utils.data.DataLoader(testdataloader, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
 
-    model = 
+    model = F_HMN(opt)
     model.train()
 
     for epoch in range(0, opt.epoch):
-        for i, data in enumerate(dataloader, 0):
-            description, inputs = data
-            y_pred = model(description, inputs)
+        for i, data in enumerate(traindataloader, 0):
+            text, parent_label, child_label, token_type_ids = data
+            y_pred = model(text, token_type_ids)
             loss =
             loss.backward()
