@@ -3,7 +3,8 @@ import torch
 import numpy as np
 import torch.utils.data as data
 from transformers import BertTokenizer, BertModel, BertForMaskedLM
-
+import pandas as pd
+import numpy as np
 class Dataset(data.Dataset):
 
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
@@ -36,24 +37,37 @@ class Dataset(data.Dataset):
 
         sequence_classification_tokenizer is used internally only for tokenization
         '''
-        self.opt;
+        self.opt = opt
         self.text_corpus = []
         self.input_ids = []
         self.token_type_ids = []
         self.p_labels = []
         self.c_labels = []
+        self.sequence_classification_tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer',
+                                                           'bert-base-cased-finetuned-mrpc')
 
-        ### Read data from csv
-        with open (self.opt.dataset, 'r', encoding="utf8") as file:
-            csv_reader = csv.reader(file)
-            next(csv_reader) ### Skip Heading Row
-            for row in csv_reader:
-                a_row = row[0].split(";")
-                self.text_corpus.append(a_row[2])
-                self.p_labels.append(a_row[4:6])
-                self.c_labels.append(a_row[5:])
+        df = pd.read_csv(self.opt.dataset, delimiter=';', header=0, encoding='utf8',
+                         names=['number', 'ProjectID', 'RequirementText', 'class', 'NFR', 'F', 'A', 'FT', 'L', 'LF',
+                                'MN', 'O', 'PE', 'PO', 'SC', 'SE', 'US'])
+        df = df.dropna()
+        df = df.sample(frac=1, axis=0, random_state=904727489)
+        self.text_corpus = df.RequirementText.tolist()
+        labels = ['NFR', 'F', 'A', 'FT', 'L', 'LF',
+                                'MN', 'O', 'PE', 'PO', 'SC', 'SE', 'US']
+        for index, row in df.iterrows():
+            temp_p = []
+            temp_c = []
+            for i in labels[0:2]:
+                temp_p.append(float(row[i]))
+            for i in labels[2:]:
+                temp_c.append(float(row[i]))
+            self.p_labels.append(temp_p)
+            flag = 0.
+            if temp_p[1] == 1:
+                flag = 1.
+            temp_c.append(flag)
+            self.c_labels.append(temp_c)
 
-        ### Calculate BERT vectors
         for text in self.text_corpus:
             # Get encoding info for each text in corpus along with every labels
             encodes = self.sequence_classification_tokenizer.encode_plus(text)
@@ -76,8 +90,10 @@ class Dataset(data.Dataset):
         input_ids = self.input_ids[index]
         parent_label = self.p_labels[index]
         child_label = self.c_labels[index][0:clabel_nb]
-        token_type_ids = self.text_vectors[index]
-        return input_ids, parent_label, child_label, token_type_ids
+        token_type_ids = self.token_type_ids[index]
+
+
+        return torch.tensor(input_ids), torch.tensor(parent_label), torch.tensor(child_label), torch.tensor(token_type_ids)
 
 
 
@@ -86,7 +102,7 @@ class Dataset(data.Dataset):
         '''
         @return: the shape of vector, tuple (quantity of data, length of vectors)
         '''
-        return (len(self.text_vectors), self.text_vectors[0].shape[2]) 
+        return len(self.text_corpus)
 
 
 
