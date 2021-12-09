@@ -24,10 +24,10 @@ class Dataset(data.Dataset):
         "US" : "",
     '''
 
-    def __init__(self):
+    def __init__(self, opt):
         '''
         attributes:
-        opt            :   parser specified in train.py  !!! DELETED !!! since train.py imports current file, current file cannot import things from train.py
+        opt            :   parser specified in train.py
         text_corpus    :   text corpus, string array
         text_vectors   :   ***vectors that represent text in corpus, 长度为num_hidden_layers的(batch_size， sequence_length，hidden_size)的Tensor.列表
         p_labels       :   ***parent labels text in corpus, array of bitmaps (2d array)    [NFR, F]
@@ -36,6 +36,7 @@ class Dataset(data.Dataset):
 
         sequence_classification_tokenizer is used internally only for tokenization
         '''
+        self.opt;
         self.text_corpus = []
         self.text_vectors = []
         self.input_ids = []
@@ -44,7 +45,7 @@ class Dataset(data.Dataset):
         self.c_labels = []
 
         ### Read data from csv
-        with open ("promise_nfr.csv", 'r', encoding="utf8") as file:
+        with open (self.opt.dataset, 'r', encoding="utf8") as file:
             csv_reader = csv.reader(file)
             next(csv_reader) ### Skip Heading Row
             for row in csv_reader:
@@ -70,13 +71,15 @@ class Dataset(data.Dataset):
 
 
 
-    def __getitem__(self, index, clabel_nb = 12):
+    def __getitem__(self, index):
         '''
         @param: index: int, location of data instance
-        @param: clabel_nb int, how many children labels are required in classification, default value = 12
         @return: input_ids, parent_label, child_label, and BERT vector of a data instance at specified location
                    ^ this is the array of words' id in dictionary
         '''
+        #Get quantity of children labels are desired in classification
+        clabel_nb = self.opt.clabel_nb
+
         input_ids = self.input_ids[index]
         parent_label = self.p_labels[index]
         child_label = self.c_labels[index][0:clabel_nb]
@@ -94,10 +97,13 @@ class Dataset(data.Dataset):
 
 
 
-    def getLabelDes(self, clabel_nb = 12):
+    def getLabelDes(self):
         '''
         @return array of tensor (representing label descriptions based on their tokens' ids in the dictionary)
         '''
+        #Get quantity of children labels are desired in classification
+        clabel_nb = self.opt.clabel_nb
+
         res = []
         counter = 0
         for label in self.labels:
@@ -109,12 +115,9 @@ class Dataset(data.Dataset):
 
 '''
 For Testing Purpose:
-'''
+
 def main():
-    corpus = Dataset()
-    print(corpus[10])
-    print(corpus.__len__())
-    print(corpus.getLabelDes())
 
 if __name__ == "__main__":
     main()
+'''
