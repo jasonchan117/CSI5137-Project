@@ -72,7 +72,7 @@ def do_bert(text):
     sequence_classification_tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased-finetuned-mrpc')
     for label in labels:
         # Get encoding info for each text in corpus along with every labels
-        encodes = sequence_classification_tokenizer.encode_plus(label, text)
+        encodes = sequence_classification_tokenizer.encode_plus(text)
         # Get encoding info from BERT
         tokens_tensor = torch.tensor([encodes['input_ids']])
         segments_tensors = torch.tensor(encodes['token_type_ids'])
