@@ -16,8 +16,10 @@ parser.add_argument('--epoch', default=100, type = int)
 parser.add_argument('--batchsize', default=100, type = int)
 parser.add_argument('--datalen', type=int)
 parser.add_argument('--workers', type=int, default = 5, help='number of data loading workers')
+parser.add_argument('--clabel_nb', type=int, default = 12, help='quantity of children labels are desired in classification')
 opt = parser.parse_args()
 
+'''
 kf = KFold(n_splits=opt.kf)
 dataset = Dataset(opt)
 child_label_des = dataset.getLabelDes()
@@ -37,3 +39,4 @@ for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
             y_pred = model(text, token_type_ids)
             loss =
             loss.backward()
+'''
