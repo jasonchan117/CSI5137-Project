@@ -17,6 +17,7 @@ parser.add_argument('--datalen', type=int)
 parser.add_argument('--workers', type=int, default = 5, help='number of data loading workers')
 opt = parser.parse_args()
 
+'''
 kf = KFold(n_splits=opt.kf)
 for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
     train_subset = torch.utils.data.dataset.Subset(Dataset(opt), train_index)
@@ -33,3 +34,4 @@ for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
             y_pred = model(description, inputs)
             loss =
             loss.backward()
+'''
