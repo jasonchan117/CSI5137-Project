@@ -94,12 +94,16 @@ class Dataset(data.Dataset):
 
 
 
-    def getLabelDes(self):
+    def getLabelDes(self, clabel_nb = 12):
         '''
         @return array of tensor (representing label descriptions based on their tokens' ids in the dictionary)
         '''
         res = []
+        counter = 0
         for label in self.labels:
+            if counter == clabel_nb:
+                break
+            counter ++
             res.append(torch.tensor(self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']))
         return res
 
