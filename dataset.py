@@ -38,7 +38,6 @@ class Dataset(data.Dataset):
         '''
         self.opt;
         self.text_corpus = []
-        self.text_vectors = []
         self.input_ids = []
         self.token_type_ids = []
         self.p_labels = []
@@ -54,20 +53,14 @@ class Dataset(data.Dataset):
                 self.p_labels.append(a_row[4:6])
                 self.c_labels.append(a_row[5:])
 
-        ### Create BERT Model
-        bert_model = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
-        self.sequence_classification_tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased-finetuned-mrpc')
-
         ### Calculate BERT vectors
         for text in self.text_corpus:
             # Get encoding info for each text in corpus along with every labels
             encodes = self.sequence_classification_tokenizer.encode_plus(text)
-            # Get encoding info from BERT
-            tokens_tensor = torch.tensor([encodes['input_ids']])
+
+            tokens_tensor = encodes['input_ids']
             self.input_ids.append(tokens_tensor)
-            bert_model.eval()
-            outputs = bert_model(tokens_tensor)
-            self.text_vectors.append(outputs[0])
+            self.token_type_ids.append(encodes['token_type_ids'])
 
 
 
@@ -83,8 +76,8 @@ class Dataset(data.Dataset):
         input_ids = self.input_ids[index]
         parent_label = self.p_labels[index]
         child_label = self.c_labels[index][0:clabel_nb]
-        bert_vector = self.text_vectors[index]
-        return input_ids, parent_label, child_label, bert_vector
+        token_type_ids = self.text_vectors[index]
+        return input_ids, parent_label, child_label, token_type_ids
 
 
 
@@ -111,7 +104,7 @@ class Dataset(data.Dataset):
                 break
             counter += 1
             res.append(torch.tensor(self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']))
-        return res
+        return torch.tensor(res)
 
 '''
 For Testing Purpose:
