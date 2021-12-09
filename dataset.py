@@ -103,7 +103,7 @@ class Dataset(data.Dataset):
         for label in self.labels:
             if counter == clabel_nb:
                 break
-            counter ++
+            counter += 1
             res.append(torch.tensor(self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']))
         return res
 
