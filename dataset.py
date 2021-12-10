@@ -125,7 +125,7 @@ class Dataset(data.Dataset):
             if len(des.squeeze(0).numpy()) < self.opt.sen_len:
                 des = np.append(des, [0 for i in range(self.opt.sen_len - len(des))])
             res.append(torch.tensor(des[0:self.opt.sen_len]))
-            
+
         return torch.tensor(res)
 
 '''
