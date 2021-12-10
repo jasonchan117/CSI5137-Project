@@ -121,7 +121,11 @@ class Dataset(data.Dataset):
             if counter == clabel_nb:
                 break
             counter += 1
-            res.append(torch.tensor(self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']))
+            des = self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']
+            if len(des.squeeze(0).numpy()) < self.opt.sen_len:
+                des = np.append(des, [0 for i in range(self.opt.sen_len - len(des))])
+            res.append(torch.tensor(des[0:self.opt.sen_len]))
+            
         return torch.tensor(res)
 
 '''
