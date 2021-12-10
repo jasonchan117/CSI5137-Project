@@ -7,14 +7,14 @@ from dataset import *
 from sklearn.model_selection import KFold
 from model import *
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default = 'promise_nfr', help='The dataset file')
+parser.add_argument('--dataset', type=str, default = 'promise_nfr.csv', help='The dataset file')
 parser.add_argument('--resume', type=str, default = '',  help='resume model')
 parser.add_argument('--ckpt', type=str, default = 'ckpt/', help='The dir save that save the model.')
 parser.add_argument('--lr', default=0.0001, help='learning rate')
 parser.add_argument('--kf', default=5, type = int, help = 'Number of kfold')
 parser.add_argument('--epoch', default=100, type = int)
 parser.add_argument('--batchsize', default=100, type = int)
-parser.add_argument('--datalen', type=int)
+parser.add_argument('--sen_len', default=18, type=int, help = 'The length of the input sentence.')
 parser.add_argument('--workers', type=int, default = 5, help='number of data loading workers')
 parser.add_argument('--clabel_nb', type=int, default = 12, help='quantity of children labels are desired in classification')
 opt = parser.parse_args()
