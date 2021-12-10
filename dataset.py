@@ -9,21 +9,19 @@ class Dataset(data.Dataset):
 
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
     labels = {
-        "F"  : "A description of the service that the software must offer. It describes a software system or its component.",
+        "F"  : "Description of the service that the software must offer. It describes a software or its component.",
+        "A"  : "Description of how likely the software is accessible for a user at a given point in time. It can be expressed as a probability percentage, may also be defined as a percentage of time the system is accessible for operation during some time period.",
+        "FT" : "Property that enables a software to continue operating properly in the event of the failure of one or more faults within some of its components",
+        "L"  : "Requirement that limits the risk for disputes between a software providers and their users",
+        "LF" : "Aspects of software's design, including elements such as colors, shapes, layout, and typefaces , as well as the behavior of dynamic elements such as buttons, boxes, and menus . The term can also refer to aspects of a non-graphical user interface , as well as to aspects of an API mostly to parts of an API that are not related to its functional properties",
+        "MN" : "Ease with which a software can be maintained for learning from the past in order to improve the ability to maintain software, or improve the reliability of software based on maintenance experience",
+        "O"  : "Ability to keep the software in a safe and reliable functioning condition, according to pre-defined operational requirements.",
+        "PE" : "Amount of useful work accomplished by a software, estimated in terms of accuracy, efficiency and speed of executing",
+        "PO" : "Usability of the same software in different environments, also the key issue for development cost reduction",
+        "SC" : "Property of a software to handle a growing amount of work by adding resources to the software",
+        "SE" : "Protection of software from information disclosure, theft of or damage to their electronic data, as well as from the disruption or misdirection of the services they provide",
+        "US" : "Degree to which a software can be used by specified consumers to achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
     }
-    '''
-        "A"  : "",
-        "FT" : "",
-        "L"  : "",
-        "LF" : "",
-        "MN" : "",
-        "O"  : "",
-        "PE" : "",
-        "PO" : "",
-        "SC" : "",
-        "SE" : "",
-        "US" : "",
-    '''
 
     def __init__(self, opt):
         '''
