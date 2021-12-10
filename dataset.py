@@ -1,10 +1,10 @@
 import csv
 import torch
 import numpy as np
+import pandas as pd
 import torch.utils.data as data
 from transformers import BertTokenizer, BertModel, BertForMaskedLM
-import pandas as pd
-import numpy as np
+
 class Dataset(data.Dataset):
 
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
