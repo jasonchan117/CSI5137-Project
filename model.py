@@ -1,4 +1,6 @@
-
+from model.attentions.RSABlock import *
+from model.layers.FCLayer import *
+from model.model_utils import LayerNorm
 import torch
 import numpy as np
 import torch.nn as nn
@@ -9,6 +11,10 @@ class F_HMN(nn.Module):
         self.bert_description = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
         self.bert_text = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
         self.opt = opt
+        self.RSANModel = RSANModel(opt)
+        self.parent_fc = FCLayer(2*768, 2, type="deep")
+
+
     def cal(self,input_list, last_hidden):
         """
         use CosineSimilarity to calculate the reputation
@@ -39,6 +45,7 @@ class F_HMN(nn.Module):
 
         output_list = input_list-avgpool
         father = torch.cat([avgpool])
+        return father, output_list
 
     def forward(self, text, token_type_ids, child_label_des, child_label_len):
         # child_label_des: (12, max), child_label_len: (12, )
@@ -63,8 +70,49 @@ class F_HMN(nn.Module):
         all_list = [F.max_pool1d(nf_output[1].transpose(1, 2), nf_output[1].transpose(1, 2).size(2)).squeeze(2), F.max_pool1d(f_output[1].transpose(1, 2), f_output[1].transpose(1, 2).size(2)).squeeze(2)]
         # parent_label shape:(12, 768)
         label_des = F.max_pool1d(parent_label.transpose(1, 2), parent_label.transpose(1, 2).size(2)).squeeze(2)
-
+        # (bs, 12, 768)
         label_repeat_out = label_des.repeat((text.size(0), 1, 1))
-        parent_output =
         # (bs, 18, 768)
         text_embed = self.bert_text(text, token_type_ids[0])[0]
+        # output_feature shape (bs, 2 x 768)
+        output_feature = self.RSANModel(text_embed, label_repeat_out)
+        parent_prob = self.parent_fc(output_feature)
+
+        return parent_prob
+
+class RSANModel(nn.Module):
+    def __init__(self, opt):
+        super(RSANModel, self).__init__()
+        self.norm = LayerNorm(768)
+        self.rsa_blocks = RSABlock()
+        self.opt = opt
+    def forward(self, inputs, label_inputs):
+
+        """
+        :param inputs
+        :param inputs_length
+        :param label_inputs
+        :param label_inputs_length
+        :return:output_feature
+        """
+
+        inputs_length = torch.LongTensor([self.opt.sen_len for i in range(inputs.size(0))]).cuda()
+        docs_len = Variable(torch.LongTensor([label_inputs.size(1)] * inputs_length.size(0))).cuda()
+
+        FactAoA = inputs
+        LabelAoA = label_inputs
+
+        # (B,L,H), (B,LS,H)
+        FactAoA, LabelAoA = self.rsa_blocks(FactAoA, inputs_length, LabelAoA, docs_len)
+        FactAoA = self.norm(FactAoA)
+        LabelAoA = self.norm(LabelAoA)
+
+        # simple version
+        # (B, L, H) -> (B, H)
+        FactAoA_output = torch.mean(FactAoA,dim=1)
+        # (B, LS, H) -> (B, H)
+        LabelAoA_output = torch.mean(LabelAoA,dim=1)
+        # (B, H) + (B, H) -> (B, 2H)
+        output_feature = torch.cat((FactAoA_output, LabelAoA_output), dim=-1)
+
+        return output_feature
