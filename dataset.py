@@ -9,7 +9,7 @@ class Dataset(data.Dataset):
 
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
     labels = {
-        "F"  : "Description of the service that the software must offer. It describes a software or its component.",
+
         "A"  : "Description of how likely the software is accessible for a user at a given point in time. It can be expressed as a probability percentage, may also be defined as a percentage of time the system is accessible for operation during some time period.",
         "FT" : "Property that enables a software to continue operating properly in the event of the failure of one or more faults within some of its components",
         "L"  : "Requirement that limits the risk for disputes between a software providers and their users",
@@ -21,6 +21,7 @@ class Dataset(data.Dataset):
         "SC" : "Property of a software to handle a growing amount of work by adding resources to the software",
         "SE" : "Protection of software from information disclosure, theft of or damage to their electronic data, as well as from the disruption or misdirection of the services they provide",
         "US" : "Degree to which a software can be used by specified consumers to achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
+        "F": "Description of the service that the software must offer. It describes a software or its component."
     }
 
     def __init__(self, opt):
@@ -115,16 +116,26 @@ class Dataset(data.Dataset):
 
         res = []
         counter = 0
+        max_d = -1
+        sub_len = []
         for label in self.labels:
             if counter == clabel_nb:
                 break
             counter += 1
             des = self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']
-            if len(des.squeeze(0).numpy()) < self.opt.sen_len:
-                des = np.append(des, [0 for i in range(self.opt.sen_len - len(des))])
+            sub_len.append(len(des.squeeze(0).numpy()))
+            max_d = max(max_d, len(des.squeeze(0).numpy()))
+        counter = 0
+        for label in self.labels:
+            if counter == clabel_nb:
+                break
+            counter += 1
+            des = self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']
+            if len(des.squeeze(0).numpy()) < max_d:
+                des = np.append(des, [0 for i in range(max_d - len(des))])
             res.append(torch.tensor(des[0:self.opt.sen_len]))
 
-        return torch.tensor(res)
+        return torch.tensor(res), torch.tensor(sub_len)
 
 '''
 For Testing Purpose:

@@ -22,7 +22,7 @@ opt = parser.parse_args()
 
 kf = KFold(n_splits=opt.kf)
 dataset = Dataset(opt)
-child_label_des = dataset.getLabelDes()
+child_label_des, child_label_len = dataset.getLabelDes()
 for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
 
     train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
@@ -36,6 +36,6 @@ for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
     for epoch in range(0, opt.epoch):
         for i, data in enumerate(traindataloader, 0):
             text, parent_label, child_label, token_type_ids = data
-            y_pred = model(text, token_type_ids)
+            y_pred = model(text, token_type_ids, child_label_des, child_label_len)
             loss =
             loss.backward()
