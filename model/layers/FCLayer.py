@@ -12,7 +12,7 @@ class FCLayer(BasicModule):
         elif type == "deep":
             self.fc = nn.Sequential(
                 nn.Linear(self.input_dim, self.linear_hidden_dim),
-                nn.BatchNorm1d(self.linear_hidden_dim),
+                # nn.BatchNorm1d(self.linear_hidden_dim),
                 # LayerNorm(self.linear_hidden_dim),
                 nn.ReLU(inplace=True),
                 nn.Linear(self.linear_hidden_dim, self.output_dim)
@@ -20,5 +20,6 @@ class FCLayer(BasicModule):
 
 
     def forward(self, inputs):
+
         logits = self.fc(inputs)
         return logits
