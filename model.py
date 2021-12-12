@@ -13,8 +13,10 @@ class F_HMN(nn.Module):
         self.opt = opt
         self.RSANModel = RSANModel(opt)
         self.parent_fc = FCLayer(2*768, 2, type="deep")
-
-
+        self.coatt_nf = RSANModel(opt)
+        self.coatt_f = RSANModel(opt)
+        self.nf_fc = FCLayer(2*768, 11, type = "deep")
+        self.f_fc = FCLayer(2*7681, 1, type = 'deep')
     def cal(self,input_list, last_hidden):
         """
         use CosineSimilarity to calculate the reputation
@@ -47,9 +49,9 @@ class F_HMN(nn.Module):
         father = torch.cat([avgpool])
         return father, output_list
 
-    def forward(self, text, token_type_ids, child_label_des, child_label_len):
+    def forward(self, text, token_type_ids, child_label_des, child_label_len, parent_label, mode = 'train'):
         # child_label_des: (12, max), child_label_len: (12, )
-
+        # parent_label: (bs, 2)
 
 
         des_output = self.bert_description(child_label_des, token_type_ids[0])[1]
@@ -76,9 +78,32 @@ class F_HMN(nn.Module):
         text_embed = self.bert_text(text, token_type_ids[0])[0]
         # output_feature shape (bs, 2 x 768)
         output_feature = self.RSANModel(text_embed, label_repeat_out)
+        # shape (bs, 2)
         parent_prob = self.parent_fc(output_feature)
 
-        return parent_prob
+        # Get the index of F case and NF case in one batch
+        b_f_index = []
+        b_nf_index = []
+        for index, i in enumerate(parent_label):
+            if i[1].item() == 1.:
+                b_f_index.append(index)
+            else:
+                b_nf_index.append(index)
+        # NF classification
+        child_prob = []
+        if len(b_nf_index) != 0:
+            NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:11].repeat(len(b_nf_index), 1, 1))
+            child_prob.append(self.coatt_nf(NF_child_label_prob))
+        else:
+            child_prob.append([])
+        # F classification
+        if len(b_f_index) != 0:
+            F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
+            child_prob.append(self.coatt_f(F_child_label_prob))
+        else:
+            child_prob.append([])
+
+        return parent_prob, child_prob, b_nf_index, b_f_index
 
 class RSANModel(nn.Module):
     def __init__(self, opt):
