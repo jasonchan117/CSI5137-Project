@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 class F_HMN(nn.Module):
     def __init__(self, opt):
+        super(F_HMN, self).__init__()
         # The bert model object
         self.bert_description = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
         self.bert_text = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
@@ -15,8 +16,8 @@ class F_HMN(nn.Module):
         self.parent_fc = FCLayer(2*768, 2, type="deep")
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
-        self.nf_fc = FCLayer(2*768, 11, type = "deep")
-        self.f_fc = FCLayer(2*7681, 1, type = 'deep')
+        self.nf_fc = FCLayer(2*768, 11)
+        self.f_fc = FCLayer(2*768, 1)
     def cal(self,input_list, last_hidden):
         """
         use CosineSimilarity to calculate the reputation
@@ -39,7 +40,7 @@ class F_HMN(nn.Module):
         # [B*B,L,H]*[B*B,L,1]
         attention = a*cosine
         # [B, B, L, H]
-        part_list = attention.view(len(input_list), len(input_list), -1, self.args.hidden_size)
+        part_list = attention.view(len(input_list), len(input_list), -1, 768)
         # [B,B,L,H]----[B,1,L,H]-----[B,L,H]  all subclasses's attention
         avgpool = F.avg_pool3d(part_list, (len(input_list), 1, 1)).squeeze()
 
@@ -49,12 +50,12 @@ class F_HMN(nn.Module):
         father = torch.cat([avgpool])
         return father, output_list
 
-    def forward(self, text, token_type_ids, child_label_des, child_label_len, parent_label, mode = 'train'):
+    def forward(self, text, child_label_des, p_label, mode = 'train'):
         # child_label_des: (12, max), child_label_len: (12, )
         # parent_label: (bs, 2)
 
 
-        des_output = self.bert_description(child_label_des, token_type_ids[0])[1]
+        des_output = self.bert_description(child_label_des)
         # (12, max, 768)
         des_per_embed = des_output[0]
         # (12, 768)
@@ -68,42 +69,54 @@ class F_HMN(nn.Module):
 
         nf_output = self.cal(nf_per_embed, nf_embed)
         f_output = self.cal(f_per_embed, f_embed)
-        parent_label = torch.cat([nf_output[0], f_output[0]])
+        parent_label = torch.cat([nf_output[0], f_output[0].unsqueeze(0)])
         all_list = [F.max_pool1d(nf_output[1].transpose(1, 2), nf_output[1].transpose(1, 2).size(2)).squeeze(2), F.max_pool1d(f_output[1].transpose(1, 2), f_output[1].transpose(1, 2).size(2)).squeeze(2)]
         # parent_label shape:(12, 768)
         label_des = F.max_pool1d(parent_label.transpose(1, 2), parent_label.transpose(1, 2).size(2)).squeeze(2)
         # (bs, 12, 768)
         label_repeat_out = label_des.repeat((text.size(0), 1, 1))
         # (bs, 18, 768)
-        text_embed = self.bert_text(text, token_type_ids[0])[0]
+        text_embed = self.bert_text(text)[0]
         # output_feature shape (bs, 2 x 768)
         output_feature = self.RSANModel(text_embed, label_repeat_out)
         # shape (bs, 2)
         parent_prob = self.parent_fc(output_feature)
 
-        # Get the index of F case and NF case in one batch
-        b_f_index = []
-        b_nf_index = []
-        for index, i in enumerate(parent_label):
-            if i[1].item() == 1.:
-                b_f_index.append(index)
+        if mode == 'train':
+            # Get the index of F case and NF case in one batch
+            b_f_index = []
+            b_nf_index = []
+            for index, i in enumerate(p_label):
+                if i[1].item() == 1.:
+                    b_f_index.append(index)
+                else:
+                    b_nf_index.append(index)
+            # NF classification
+            child_prob = []
+            if len(b_nf_index) != 0:
+                NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:11].repeat(len(b_nf_index), 1, 1))
+                child_prob.append(self.nf_fc(NF_child_label_prob))
             else:
-                b_nf_index.append(index)
-        # NF classification
-        child_prob = []
-        if len(b_nf_index) != 0:
-            NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:11].repeat(len(b_nf_index), 1, 1))
-            child_prob.append(self.coatt_nf(NF_child_label_prob))
-        else:
-            child_prob.append([])
-        # F classification
-        if len(b_f_index) != 0:
-            F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
-            child_prob.append(self.coatt_f(F_child_label_prob))
-        else:
-            child_prob.append([])
+                child_prob.append([])
+            # F classification
+            if len(b_f_index) != 0:
+                F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
+                child_prob.append(self.f_fc(F_child_label_prob))
+            else:
+                child_prob.append([])
 
-        return parent_prob, child_prob, b_nf_index, b_f_index
+            return parent_prob, child_prob, b_nf_index, b_f_index
+        else:
+            # NFR
+            if F.sigmoid(parent_prob).squeeze(0)[0] > F.sigmoid(parent_prob).squeeze(0)[1]:
+                return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[:11].unsqueeze(0))))
+            else:
+            # F
+                return F.sigmoid(parent_prob), F.sigmoid(self.f_fc(self.coatt_f(text_embed, label_des[11:].unsqueeze(0))))
+
+
+
+
 
 class RSANModel(nn.Module):
     def __init__(self, opt):
