@@ -33,12 +33,17 @@ for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
     testdataloader = torch.utils.data.DataLoader(testdataloader, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
 
     model = F_HMN(opt)
+    if opt.cuda == True:
+        model = model.cuda()
     model.train()
     optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr)
     # Training start
     for epoch in range(0, opt.epoch):
         for i, data in enumerate(traindataloader, 0):
             text, parent_label, child_label, token_type_ids = data
+            if opt.cuda == True:
+                text, parent_label, child_label, token_type_ids = text.cuda(), parent_label.cuda(), child_label.cuda(), token_type_ids.cuda()
+            optimizer.zero_grad()
             parent_prob, child_prob, b_nf_index, b_f_index = model(text, token_type_ids, child_label_des, child_label_len, parent_label)
             loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
             loss_child = 0
