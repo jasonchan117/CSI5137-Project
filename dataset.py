@@ -90,11 +90,12 @@ class Dataset(data.Dataset):
         parent_label = self.p_labels[index]
         child_label = self.c_labels[index][0:clabel_nb]
         token_type_ids = self.token_type_ids[index]
-        input_ids = input_ids.squeeze(0).numpy()
 
         if len(input_ids) < self.opt.sen_len:
             input_ids = np.append(input_ids, [0 for i in range(self.opt.sen_len - len(input_ids))])
-        return torch.tensor(input_ids[0:self.opt.sen_len]), torch.tensor(parent_label), torch.tensor(child_label), torch.tensor(token_type_ids)
+
+        #print('-->',len(torch.tensor(input_ids[0:self.opt.sen_len])))
+        return torch.tensor(input_ids[0:self.opt.sen_len]), torch.tensor(parent_label), torch.tensor(child_label)
 
 
 
@@ -117,25 +118,25 @@ class Dataset(data.Dataset):
         res = []
         counter = 0
         max_d = -1
-        sub_len = []
         for label in self.labels:
             if counter == clabel_nb:
                 break
             counter += 1
             des = self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']
-            sub_len.append(len(des.squeeze(0).numpy()))
-            max_d = max(max_d, len(des.squeeze(0).numpy()))
+
+            max_d = max(max_d, len(des))
         counter = 0
         for label in self.labels:
             if counter == clabel_nb:
                 break
             counter += 1
             des = self.sequence_classification_tokenizer.encode_plus(self.labels[label])['input_ids']
-            if len(des.squeeze(0).numpy()) < max_d:
-                des = np.append(des, [0 for i in range(max_d - len(des))])
-            res.append(torch.tensor(des[0:self.opt.sen_len]))
 
-        return torch.tensor(res), torch.tensor(sub_len)
+            if len(des) < max_d:
+                des = np.append(des, [0 for i in range(max_d - len(des))])
+            res.append(des)
+
+        return torch.tensor(res)
 
 '''
 For Testing Purpose:

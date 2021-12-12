@@ -5,37 +5,148 @@ import torch
 import torch.nn as nn
 from dataset import *
 from sklearn.model_selection import KFold
-from model import *
-parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default = 'promise_nfr.csv', help='The dataset file')
-parser.add_argument('--resume', type=str, default = '',  help='resume model')
-parser.add_argument('--ckpt', type=str, default = 'ckpt/', help='The dir save that save the model.')
-parser.add_argument('--lr', default=0.0001, help='learning rate')
-parser.add_argument('--kf', default=5, type = int, help = 'Number of kfold')
-parser.add_argument('--epoch', default=100, type = int)
-parser.add_argument('--batchsize', default=100, type = int)
-parser.add_argument('--sen_len', default=18, type=int, help = 'The length of the input sentence.')
-parser.add_argument('--workers', type=int, default = 5, help='number of data loading workers')
-parser.add_argument('--clabel_nb', type=int, default = 12, help='quantity of children labels are desired in classification')
-opt = parser.parse_args()
+from F_model import *
+from tqdm import tqdm
+from sklearn import metrics
+import warnings
 
 
-kf = KFold(n_splits=opt.kf)
-dataset = Dataset(opt)
-child_label_des, child_label_len = dataset.getLabelDes()
-for train_index, val_index in kf.split(np.arange(0, opt.datalen)):
+def main():
+    warnings.filterwarnings('ignore')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset', type=str, default='promise_nfr.csv', help='The dataset file')
+    parser.add_argument('--resume', type=str, default=None, help='resume model')
+    parser.add_argument('--ckpt', type=str, default='ckpt/', help='The dir that save the model.')
+    parser.add_argument('--lr', default=0.0001, help='learning rate')
+    parser.add_argument('--kf', default=5, type=int, help='Number of kfold')
+    parser.add_argument('--epoch', default=100, type=int)
+    parser.add_argument('--batchsize', default=8, type=int)
+    parser.add_argument('--id', required=True, help='The id for each training.')
+    parser.add_argument('--sen_len', default=18, type=int, help='The length of the input sentence.')
+    parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
+    parser.add_argument('--clabel_nb', type=int, default=12, help='quantity of children labels are desired in classification')
+    parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
+    parser.add_argument('--test_freq', default=1, type=int)
+    opt = parser.parse_args()
 
-    train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
-    val_subset = torch.utils.data.dataset.Subset(dataset, val_index)
-    traindataloader = torch.utils.data.DataLoader(train_subset, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
-    testdataloader = torch.utils.data.DataLoader(testdataloader, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
+    kf = KFold(n_splits=opt.kf)
+    dataset = Dataset(opt)
+    child_label_des = dataset.getLabelDes()
+    if opt.cuda == True:
+        child_label_des = child_label_des.cuda()
+    # Cross validation
+    kf_index = 1
+    best_f1 = -1
+    for train_index, val_index in kf.split(np.arange(0, 625)):
 
-    model = F_HMN(opt)
-    model.train()
+        train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
+        val_subset = torch.utils.data.dataset.Subset(dataset, val_index)
+        traindataloader = torch.utils.data.DataLoader(train_subset, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
+        testdataloader = torch.utils.data.DataLoader(val_subset, batch_size=1 , shuffle=True, num_workers=opt.workers)
+        print("K-fold:{}".format(kf_index))
 
-    for epoch in range(0, opt.epoch):
-        for i, data in enumerate(traindataloader, 0):
-            text, parent_label, child_label, token_type_ids = data
-            y_pred = model(text, token_type_ids, child_label_des, child_label_len)
-            loss =
-            loss.backward()
+        kf_index += 1
+        model = F_HMN(opt)
+        if opt.resume is not None:
+            print("\nLoading model from {}...".format(opt.resume))
+            model.load_state_dict(torch.load(opt.resume))
+        if opt.cuda == True:
+            model = model.cuda()
+
+        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr)
+        # Training start
+        print('----------------------------Training--------------------------------')
+        for epoch in range(1, opt.epoch + 1):
+            loss_av = 0.
+            sum = 0.
+            model.train()
+            print(">>epoch:{}".format(epoch))
+            for data in tqdm(traindataloader):
+                text, parent_label, child_label = data
+                if opt.cuda == True:
+                    text, parent_label, child_label= text.cuda(), parent_label.cuda(), child_label.cuda()
+                optimizer.zero_grad()
+                parent_prob, child_prob, b_nf_index, b_f_index = model(text, child_label_des, parent_label)
+                loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
+                loss_child = 0
+                # NF child label loss, child_prob[0] shape: (m, 11)
+                if len(child_prob[0]) > 0:
+
+                    loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,:11])
+                # F loss, child_prob[1] shape: (n, 1). m + n = bs
+                if len(child_prob[1]) > 0:
+                    loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
+
+                loss = loss_parent + loss_child
+                loss_av += loss.item()
+                sum += 1
+                loss.backward()
+                optimizer.step()
+            print('Training Loss:{}'.format(loss_av / sum))
+            if epoch % opt.test_freq == 0:
+                print('------------------------Evaluation--------------------------------')
+                model.eval()
+                loss_av = 0.
+                parent_prob_sum = []
+                child_prob_sum = []
+                parent_prob_sum_g = []
+                child_prob_sum_g = []
+                sum = 0.
+                for data in tqdm(testdataloader):
+                    text, parent_label, child_label = data
+                    if opt.cuda == True:
+                        text, parent_label, child_label= text.cuda(), parent_label.cuda(), child_label.cuda()
+                    parent_prob, child_prob = model(text, child_label_des, parent_label, mode = 'eval')
+
+                    parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
+                    child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
+                    loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
+                    p_p = [0.] * 2
+                    p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
+                    parent_prob_sum.append(p_p)
+                    loss_child = 0.
+                    c_p = [0.] * 12
+                    # NFR
+                    if parent_prob.squeeze()[0] > parent_prob.squeeze()[1]:
+                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[:11].unsqueeze(0))
+                        c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
+                    else:
+                    # F
+                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[11:].unsqueeze(0))
+                        c_p[11] = 1
+                    child_prob_sum.append(c_p)
+                    loss = loss_parent + loss_child
+                    loss_av += loss.item()
+                    sum += 1
+                loss_av /= sum
+                parent_prob_sum = np.array(parent_prob_sum)
+                child_prob_sum = np.array(child_prob_sum)
+                parent_prob_sum_g = np.array(parent_prob_sum_g)
+                child_prob_sum_g = np.array(child_prob_sum_g)
+
+                (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum)
+                (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum)
+                (sma_p, sma_r, sma_f1), sacc = cal_metric(np.concatenate((child_prob_sum_g, parent_prob_sum_g), 1), np.concatenate((child_prob_sum, parent_prob_sum), 1))
+                print("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(p_p, p_r, p_f1, p_acc))
+                print("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
+                print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
+                print("Evaluation Loss:{}".format(loss_av))
+                if sma_f1 > best_f1:
+                    best_f1 = sma_f1
+                    torch.save(model.state_dict(), os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(sma_f1), '.pt'])))
+            if (epoch) % 10 == 0:
+                adjust_learning_rate(optimizer)
+
+def adjust_learning_rate(optimizer, decay_rate=.9):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = param_group['lr'] * decay_rate
+        a = param_group['lr']
+    print('lr:', a)
+
+def cal_metric(y_true, y_pred):
+    ma_p, ma_r, ma_f1, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='macro')
+    acc = metrics.accuracy_score(y_true,y_pred)
+    return [(ma_p, ma_r, ma_f1), acc]
+
+if __name__ == "__main__":
+    main()
