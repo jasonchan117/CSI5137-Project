@@ -10,18 +10,18 @@ class Dataset(data.Dataset):
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
     labels = {
 
-        "A"  : "Description of how likely the software is accessible for a user at a given point in time. It can be expressed as a probability percentage, may also be defined as a percentage of time the system is accessible for operation during some time period.",
-        "FT" : "Property that enables a software to continue operating properly in the event of the failure of one or more faults within some of its components",
-        "L"  : "Requirement that limits the risk for disputes between a software providers and their users",
-        "LF" : "Aspects of software's design, including elements such as colors, shapes, layout, and typefaces , as well as the behavior of dynamic elements such as buttons, boxes, and menus . The term can also refer to aspects of a non-graphical user interface , as well as to aspects of an API mostly to parts of an API that are not related to its functional properties",
-        "MN" : "Ease with which a software can be maintained for learning from the past in order to improve the ability to maintain software, or improve the reliability of software based on maintenance experience",
+        "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage"
+        "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
+        "L"  : "Requirement that limits the risk for legal disputes between a software provider and their users, and the compliance with laws",
+        "LF" : "Aspects of software's design, including elements, the behavior of elements, a non-graphical user interface, and API not related to functional properties",
+        "MN" : "Ease with which a software can be maintained for learning from the past in order to improve the ability or reliability of software",
         "O"  : "Ability to keep the software in a safe and reliable functioning condition, according to pre-defined operational requirements.",
         "PE" : "Amount of useful work accomplished by a software, estimated in terms of accuracy, efficiency and speed of executing",
         "PO" : "Usability of the same software in different environments, also the key issue for development cost reduction",
-        "SC" : "Property of a software to handle a growing amount of work by adding resources to the software",
-        "SE" : "Protection of software from information disclosure, theft of or damage to their electronic data, as well as from the disruption or misdirection of the services they provide",
-        "US" : "Degree to which a software can be used by specified consumers to achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
-        "F": "Description of the service that the software must offer. It describes a software or its component."
+        "SC" : "Property of software to handle increasing (or decreasing)c amount of workload by adding resources to the software",
+        "SE" : "Protection of software from information disclosure, theft of or damage to their data, also from the disruption or misdirection of its services",
+        "US" : "Degree to which a software can achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
+        "F"  : "Description of the service that the software must offer. It describes a software or its component."
     }
 
     def __init__(self, opt):
