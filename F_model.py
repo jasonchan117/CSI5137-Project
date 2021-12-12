@@ -16,8 +16,8 @@ class F_HMN(nn.Module):
         self.parent_fc = FCLayer(2*768, 2, type="deep")
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
-        self.nf_fc = FCLayer(2*768, 11)
-        self.f_fc = FCLayer(2*768, 1)
+        self.nf_fc = FCLayer(2*768, 11, type = "deep")
+        # self.f_fc = FCLayer(2*768, 1)
     def cal(self,input_list, last_hidden):
         """
         use CosineSimilarity to calculate the reputation
@@ -99,11 +99,11 @@ class F_HMN(nn.Module):
             else:
                 child_prob.append([])
             # F classification
-            if len(b_f_index) != 0:
-                F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
-                child_prob.append(self.f_fc(F_child_label_prob))
-            else:
-                child_prob.append([])
+            # if len(b_f_index) != 0:
+            #     F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
+            #     child_prob.append(self.f_fc(F_child_label_prob))
+            # else:
+            child_prob.append([])
 
             return parent_prob, child_prob, b_nf_index, b_f_index
         else:
@@ -112,7 +112,7 @@ class F_HMN(nn.Module):
                 return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[:11].unsqueeze(0))))
             else:
             # F
-                return F.sigmoid(parent_prob), F.sigmoid(self.f_fc(self.coatt_f(text_embed, label_des[11:].unsqueeze(0))))
+                return F.sigmoid(parent_prob), 0
 
 
 

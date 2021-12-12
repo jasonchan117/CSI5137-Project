@@ -74,10 +74,12 @@ def main():
 
                     loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,:11])
                 # F loss, child_prob[1] shape: (n, 1). m + n = bs
-                if len(child_prob[1]) > 0:
-                    loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
+                # if len(child_prob[1]) > 0:
+                #     loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
 
-                loss = loss_parent + loss_child
+                    loss = loss_parent + loss_child
+                else:
+                    loss = loss_parent
                 loss_av += loss.item()
                 sum += 1
                 loss.backward()
@@ -99,22 +101,29 @@ def main():
                     parent_prob, child_prob = model(text, child_label_des, parent_label, mode = 'eval')
 
                     parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
+                    # if parent_label.cpu().squeeze(0).numpy()[0] == 1:
                     child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
+
                     loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
                     p_p = [0.] * 2
                     p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
                     parent_prob_sum.append(p_p)
                     loss_child = 0.
-                    c_p = [0.] * 12
+
                     # NFR
                     if parent_prob.squeeze()[0] > parent_prob.squeeze()[1]:
+                        c_p = [0.] * 12
                         loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[:11].unsqueeze(0))
                         c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
-                    else:
+                    #else:
                     # F
-                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[11:].unsqueeze(0))
+                    #     loss_child = 0
+                    #     c_p[11] = 1
+                        child_prob_sum.append(c_p)
+                    else:
+                        c_p = [0.] * 12
                         c_p[11] = 1
-                    child_prob_sum.append(c_p)
+                        child_prob_sum.append(c_p)
                     loss = loss_parent + loss_child
                     loss_av += loss.item()
                     sum += 1
