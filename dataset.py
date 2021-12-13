@@ -10,7 +10,7 @@ class Dataset(data.Dataset):
     # A dictionary that stores the descriptions of labels, order of entires is used to create bitmaps
     labels = {
 
-        "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage"
+        "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage",
         "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
         "L"  : "Requirement that limits the risk for legal disputes between a software provider and their users, and the compliance with laws",
         "LF" : "Aspects of software's design, including elements, the behavior of elements, a non-graphical user interface, and API not related to functional properties",
