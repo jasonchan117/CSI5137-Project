@@ -133,10 +133,12 @@ class RSANModel(nn.Module):
         :param label_inputs_length
         :return:output_feature
         """
-
-        inputs_length = torch.LongTensor([self.opt.sen_len for i in range(inputs.size(0))]).cuda()
-        docs_len = Variable(torch.LongTensor([label_inputs.size(1)] * inputs_length.size(0))).cuda()
-
+        if self.opt.cuda == True:
+            inputs_length = torch.LongTensor([self.opt.sen_len for i in range(inputs.size(0))]).cuda()
+            docs_len = Variable(torch.LongTensor([label_inputs.size(1)] * inputs_length.size(0))).cuda()
+        else:
+            inputs_length = torch.LongTensor([self.opt.sen_len for i in range(inputs.size(0))])
+            docs_len = Variable(torch.LongTensor([label_inputs.size(1)] * inputs_length.size(0)))
         FactAoA = inputs
         LabelAoA = label_inputs
 
