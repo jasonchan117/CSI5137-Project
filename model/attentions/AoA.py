@@ -27,8 +27,9 @@ def softmax_mask(input, mask, axis=1, epsilon=1e-12):
 
 
 class AoA(nn.Module):
-    def __init__(self):
+    def __init__(self, opt):
         super(AoA, self).__init__()
+        self.opt = opt
 
     def forward(self, source_input, source_lengths, target_input, target_lengths):
         """
@@ -40,11 +41,17 @@ class AoA(nn.Module):
         """
         ###### 1. BEGIN: create mask
         # (B, 1)->(B, L)
-        source_mask = create_mask(source_lengths).cuda()
+        if self.opt.cuda == True:
+            source_mask = create_mask(source_lengths).cuda()
+        else:
+            source_mask = create_mask(source_lengths)
         # (B, L) -> (B, L, 1)
         source_mask = source_mask.unsqueeze(2)
         # (B, 1)->(B, LS)
-        target_mask = create_mask(target_lengths).cuda()
+        if self.opt.cuda == True:
+            target_mask = create_mask(target_lengths).cuda()
+        else:
+            target_mask = create_mask(target_lengths)
         # (B, LS) -> (B, LS, 1)
         target_mask = target_mask.unsqueeze(2)
         ###### 1. END: create mask

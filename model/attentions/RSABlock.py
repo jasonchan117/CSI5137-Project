@@ -4,9 +4,9 @@ import torch
 import math
 from .AoA import AoA
 class RSABlock(nn.Module):
-    def __init__(self):
+    def __init__(self, opt):
         super(RSABlock, self).__init__()
-        self.AoALayer = AoA()
+        self.AoALayer = AoA(opt)
 
     def forward(self, source_input, source_lengths, target_input, target_lengths):
         """

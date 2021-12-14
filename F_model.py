@@ -122,7 +122,7 @@ class RSANModel(nn.Module):
     def __init__(self, opt):
         super(RSANModel, self).__init__()
         self.norm = LayerNorm(768)
-        self.rsa_blocks = RSABlock()
+        self.rsa_blocks = RSABlock(opt)
         self.opt = opt
     def forward(self, inputs, label_inputs):
 
