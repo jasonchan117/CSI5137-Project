@@ -7,23 +7,23 @@ from transformers import BertTokenizer, BertModel, BertForMaskedLM
 
 class Dataset(data.Dataset):
 
-    # A dictionary that stores the descriptions of labels (shorter version about 20 words each)
-    labels = {
+    # # A dictionary that stores the descriptions of labels (shorter version about 20 words each)
+    # labels = {
 
-        "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage",
-        "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
-        "L"  : "Requirement that limits the risk for legal disputes between a software provider and their users, and the compliance with laws",
-        "LF" : "Aspects of software's design, including elements, the behavior of elements, non-graphical user interface, and API not related to functional properties",
-        "MN" : "Ease with which a software can be maintained for learning from the past in order to improve the ability or reliability of software",
-        "O"  : "Ability to keep the software in a safe and reliable functioning condition, according to pre-defined operational requirements.",
-        "PE" : "Amount of useful work accomplished by a software, estimated in terms of accuracy, efficiency and speed of executing",
-        "PO" : "Usability of the same software in different environments, also the key issue for development cost reduction",
-        "SC" : "Property of software to handle increasing (or decreasing) amount of workload by adding resources to the software",
-        "SE" : "Protection of software from information disclosure, theft of or damage to their data, also from the disruption or misdirection of its services",
-        "US" : "Degree to which a software can achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
-        "F"  : "Description of the service that the software must offer. It describes a software or its component."
-    }
-    '''
+    #     "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage",
+    #     "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
+    #     "L"  : "Requirement that limits the risk for legal disputes between a software provider and their users, and the compliance with laws",
+    #     "LF" : "Aspects of software's design, including elements, the behavior of elements, non-graphical user interface, and API not related to functional properties",
+    #     "MN" : "Ease with which a software can be maintained for learning from the past in order to improve the ability or reliability of software",
+    #     "O"  : "Ability to keep the software in a safe and reliable functioning condition, according to pre-defined operational requirements.",
+    #     "PE" : "Amount of useful work accomplished by a software, estimated in terms of accuracy, efficiency and speed of executing",
+    #     "PO" : "Usability of the same software in different environments, also the key issue for development cost reduction",
+    #     "SC" : "Property of software to handle increasing (or decreasing) amount of workload by adding resources to the software",
+    #     "SE" : "Protection of software from information disclosure, theft of or damage to their data, also from the disruption or misdirection of its services",
+    #     "US" : "Degree to which a software can achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
+    #     "F"  : "Description of the service that the software must offer. It describes a software or its component."
+    # }
+    
     # A dictionary that stores the descriptions of labels (longer version about 44 words each)
     labels = {
         "A"  : "Description of how likely the software is accessible for a user at a given point in time. It can be expressed as a probability percentage, may also be defined as a percentage of time the system is accessible for operation during some time period.",
@@ -39,7 +39,7 @@ class Dataset(data.Dataset):
         "US" : "Degree to which a software can be used by specified consumers to achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use; it considers user satisfaction and utility and aims to improve user experience through iterative design",
         "F"  : "It defines a function of a software or its component, where a function is described as a specification of behavior between inputs and outputs; it may involve calculations, technical details, data manipulation, processing, and other specific functionality that define what is supposed to accomplish"
     }
-    '''
+    
 
     def __init__(self, opt):
         '''
