@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from dataset import *
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold as KFold
 from F_model import *
 from tqdm import tqdm
 from sklearn import metrics
@@ -17,7 +17,7 @@ def main():
     parser.add_argument('--dataset', type=str, default='promise_nfr.csv', help='The dataset file')
     parser.add_argument('--resume', type=str, default=None, help='resume model')
     parser.add_argument('--ckpt', type=str, default='ckpt/', help='The dir that save the model.')
-    parser.add_argument('--lr', default=0.0001, help='learning rate')
+    parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
     parser.add_argument('--kf', default=5, type=int, help='Number of kfold')
     parser.add_argument('--epoch', default=100, type=int)
     parser.add_argument('--batchsize', default=8, type=int)
@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
     parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
-    parser.add_argument('--wd', default=0., type = float, help='Weight decay.')
+    parser.add_argument('--wd', default=0., type=float, help='Weight decay.')
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
@@ -40,7 +40,15 @@ def main():
     # Cross validation
     kf_index = 1
     best_f1 = -1
-    for train_index, val_index in kf.split(np.arange(0, sample_len)):
+    Y = []
+    for i in dataset.c_labels:
+        for ind, j in enumerate(i[:opt.clabel_nb]):
+            if j == 1:
+                Y.append(ind)
+                break
+    Y = np.array(Y)
+
+    for train_index, val_index in kf.split(np.arange(0, sample_len),Y):
 
         train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
         val_subset = torch.utils.data.dataset.Subset(dataset, val_index)

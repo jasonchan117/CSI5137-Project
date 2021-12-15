@@ -66,7 +66,7 @@ class Dataset(data.Dataset):
                          names=['number', 'ProjectID', 'RequirementText', 'class', 'NFR', 'F', 'A', 'FT', 'L', 'LF',
                                 'MN', 'O', 'PE', 'PO', 'SC', 'SE', 'US'])
         df = df.dropna()
-        df = df.sample(frac=1, axis=0, random_state=904727489)
+        # df = df.sample(frac=1, axis=0, random_state=904727489)
         self.text_corpus = df.RequirementText.tolist()
         if self.opt.clabel_nb == 5:
             # US, SE, O, PE
@@ -78,17 +78,15 @@ class Dataset(data.Dataset):
 
         indice = []
         for index, row in df.iterrows():
+
             temp_p = []
             temp_c = []
             for i in labels[0:2]:
+
                 temp_p.append(float(row[i]))
             for i in labels[2:]:
                 temp_c.append(float(row[i]))
-            if self.opt.clabel_nb == 5 and (temp_p[0] == 1 and temp_c[:4] != [0., 0., 0., 0.]) or temp_p[1] == 1 :
-                indice.append(index)
 
-            # if (self.opt.clabel_nb == 5 and temp_p[0] == 1 and temp_c[:4] != [0., 0., 0., 0.]) or temp_p[1] == 1 or self.opt.clabel_nb != 5:
-            indice.append(index)
             self.p_labels.append(temp_p)
             flag = 0.
             if temp_p[1] == 1.:
@@ -97,6 +95,8 @@ class Dataset(data.Dataset):
                 temp_c.insert(4, flag)
             else:
                 temp_c.append(flag)
+            if self.opt.clabel_nb == 5 and temp_c[:5] != [0., 0., 0., 0., 0.] :
+                indice.append(index)
             # if (self.opt.clabel_nb == 5 and temp_p[0] == 1 and temp_c[:4] != [0., 0., 0., 0.]) or temp_p[1] == 1 or self.opt.clabel_nb != 5:
             self.c_labels.append(temp_c)
 
@@ -111,7 +111,10 @@ class Dataset(data.Dataset):
             self.input_ids = np.array(self.input_ids)[indice]
             self.p_labels = np.array(self.p_labels)[indice]
             self.c_labels = np.array(self.c_labels)[indice]
-
+        else:
+            self.input_ids = np.array(self.input_ids)
+            self.p_labels = np.array(self.p_labels)
+            self.c_labels = np.array(self.c_labels)
 
     def __getitem__(self, index):
         '''
