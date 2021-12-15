@@ -27,17 +27,19 @@ def main():
     parser.add_argument('--clabel_nb', type=int, default=12, help='quantity of children labels are desired in classification')
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
+    parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
     dataset = Dataset(opt)
     child_label_des = dataset.getLabelDes()
+    sample_len = dataset.__len__()
     if opt.cuda == True:
         child_label_des = child_label_des.cuda()
     # Cross validation
     kf_index = 1
     best_f1 = -1
-    for train_index, val_index in kf.split(np.arange(0, 625)):
+    for train_index, val_index in kf.split(np.arange(0, sample_len)):
 
         train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
         val_subset = torch.utils.data.dataset.Subset(dataset, val_index)
@@ -53,7 +55,7 @@ def main():
         if opt.cuda == True:
             model = model.cuda()
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr)
+        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=0.01)
         # Training start
         print('----------------------------Training--------------------------------')
         for epoch in range(1, opt.epoch + 1):
@@ -72,7 +74,7 @@ def main():
                 # NF child label loss, child_prob[0] shape: (m, 11)
                 if len(child_prob[0]) > 0:
 
-                    loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,:11])
+                    loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,:opt.clabel_nb - 1])
                 # F loss, child_prob[1] shape: (n, 1). m + n = bs
                 # if len(child_prob[1]) > 0:
                 #     loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
@@ -98,6 +100,7 @@ def main():
                     text, parent_label, child_label = data
                     if opt.cuda == True:
                         text, parent_label, child_label= text.cuda(), parent_label.cuda(), child_label.cuda()
+
                     parent_prob, child_prob = model(text, child_label_des, parent_label, mode = 'eval')
 
                     parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
@@ -112,8 +115,8 @@ def main():
 
                     # NFR
                     if parent_prob.squeeze()[0] > parent_prob.squeeze()[1]:
-                        c_p = [0.] * 12
-                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[:11].unsqueeze(0))
+                        c_p = [0.] * opt.clabel_nb
+                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[:opt.clabel_nb - 1].unsqueeze(0))
                         c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
                     #else:
                     # F
@@ -121,8 +124,8 @@ def main():
                     #     c_p[11] = 1
                         child_prob_sum.append(c_p)
                     else:
-                        c_p = [0.] * 12
-                        c_p[11] = 1
+                        c_p = [0.] * opt.clabel_nb
+                        c_p[-1] = 1
                         child_prob_sum.append(c_p)
                     loss = loss_parent + loss_child
                     loss_av += loss.item()

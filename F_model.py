@@ -16,8 +16,9 @@ class F_HMN(nn.Module):
         self.parent_fc = FCLayer(2*768, 2, type="deep")
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
-        self.nf_fc = FCLayer(2*768, 11, type = "deep")
-        # self.f_fc = FCLayer(2*768, 1)
+
+        self.nf_fc = FCLayer(2 * 768, self.opt.clabel_nb - 1)
+
     def cal(self,input_list, last_hidden):
         """
         use CosineSimilarity to calculate the reputation
@@ -36,6 +37,7 @@ class F_HMN(nn.Module):
         # #[B*B,L,L]
         cos = nn.CosineSimilarity(dim=2, eps=1e-6)
         #[B*B,L,1]
+        #print(a.size(), b.size())
         cosine = cos(a,b).unsqueeze(2)
         # [B*B,L,H]*[B*B,L,1]
         attention = a*cosine
@@ -54,21 +56,22 @@ class F_HMN(nn.Module):
         # child_label_des: (12, max), child_label_len: (12, )
         # parent_label: (bs, 2)
 
-
+        # print(text.size(), child_label_des.size(),p_label.size())
         des_output = self.bert_description(child_label_des)
         # (12, max, 768)
         des_per_embed = des_output[0]
         # (12, 768)
         des_embed = des_output[1]
 
-        nf_embed = des_embed[:11] #
-        f_embed = des_embed[11:]
+        nf_embed = des_embed[:self.opt.clabel_nb - 1] #
+        f_embed = des_embed[self.opt.clabel_nb - 1]
 
-        nf_per_embed = des_per_embed[:11]
-        f_per_embed = des_per_embed[11:]
+        nf_per_embed = des_per_embed[:self.opt.clabel_nb - 1]
+        f_per_embed = des_per_embed[self.opt.clabel_nb - 1]
 
         nf_output = self.cal(nf_per_embed, nf_embed)
-        f_output = self.cal(f_per_embed, f_embed)
+
+        f_output = self.cal(f_per_embed.unsqueeze(0), f_embed.unsqueeze(0))
         parent_label = torch.cat([nf_output[0], f_output[0].unsqueeze(0)])
         all_list = [F.max_pool1d(nf_output[1].transpose(1, 2), nf_output[1].transpose(1, 2).size(2)).squeeze(2), F.max_pool1d(f_output[1].transpose(1, 2), f_output[1].transpose(1, 2).size(2)).squeeze(2)]
         # parent_label shape:(12, 768)
@@ -94,7 +97,7 @@ class F_HMN(nn.Module):
             # NF classification
             child_prob = []
             if len(b_nf_index) != 0:
-                NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:11].repeat(len(b_nf_index), 1, 1))
+                NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:self.opt.clabel_nb - 1].repeat(len(b_nf_index), 1, 1))
                 child_prob.append(self.nf_fc(NF_child_label_prob))
             else:
                 child_prob.append([])
@@ -109,7 +112,7 @@ class F_HMN(nn.Module):
         else:
             # NFR
             if F.sigmoid(parent_prob).squeeze(0)[0] > F.sigmoid(parent_prob).squeeze(0)[1]:
-                return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[:11].unsqueeze(0))))
+                return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[:self.opt.clabel_nb - 1].unsqueeze(0))))
             else:
             # F
                 return F.sigmoid(parent_prob), 0
