@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
     parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
+    parser.add_argument('--wd', default=0., type = float, help='Weight decay.')
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
@@ -55,7 +56,7 @@ def main():
         if opt.cuda == True:
             model = model.cuda()
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=0.01)
+        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.wd)
         # Training start
         print('----------------------------Training--------------------------------')
         for epoch in range(1, opt.epoch + 1):
