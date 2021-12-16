@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--test_freq', default=1, type=int)
     parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
     parser.add_argument('--wd', default=0., type=float, help='Weight decay.')
+    parser.add_argument('--metric', default = None, help= 'The way to print metric for this multi classification problem, (macro) will output the average metrics of all classes, (all) will separately output the metrics of each class.')
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
@@ -145,23 +146,53 @@ def main():
                 parent_prob_sum_g = np.array(parent_prob_sum_g)
                 child_prob_sum_g = np.array(child_prob_sum_g)
 
-                (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum)
-                (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum)
+                (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, opt.metric)
+                (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, opt.metric)
                 (sma_p, sma_r, sma_f1), sacc = cal_metric(np.concatenate((child_prob_sum_g, parent_prob_sum_g), 1), np.concatenate((child_prob_sum, parent_prob_sum), 1))
-                print("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(p_p, p_r, p_f1, p_acc))
-                print("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
-                print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
-                print("Evaluation Loss:{}".format(loss_av))
-                eval_log = open(opt.id +"_eval_log.txt", 'a')
-                eval_log.write("-----------------------------")
-                eval_log.write("Fold #%d   Epoch #%d\n" %(kf_index, epoch))
-                eval_log.write("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
-                eval_log.write("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(c_p, c_r, c_f1, c_acc))
-                eval_log.write("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(sma_p, sma_r, sma_f1, sacc))
-                eval_log.close()
-                if sma_f1 > best_f1:
-                    best_f1 = sma_f1
-                    torch.save(model.state_dict(), os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(sma_f1), '.pt'])))
+                if opt.metric == 'macro':
+                    print("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(p_p, p_r, p_f1, p_acc))
+                    print("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
+                    print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
+                    print("Evaluation Loss:{}".format(loss_av))
+                    if sma_f1 > best_f1:
+                        best_f1 = sma_f1
+                        torch.save(model.state_dict(), os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(sma_f1), '.pt'])))
+                    eval_log = open(opt.id +"_eval_log.txt", 'a')
+                    eval_log.write("-----------------------------")
+                    eval_log.write("Fold #%d   Epoch #%d\n" %(kf_index, epoch))
+                    eval_log.write("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
+                    eval_log.write("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(c_p, c_r, c_f1, c_acc))
+                    eval_log.write("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(sma_p, sma_r, sma_f1, sacc))
+                    eval_log.close()
+                else:
+                    print("Parent label :")
+                    # print(p_p, p_r, p_f1)
+
+                    #
+                    print("NFR: Precision: {} | Recall: {} | F1: {}".format(p_p[0], p_r[0], p_f1[0]))
+                    print("F: Precision: {} | Recall: {} | F1: {}".format(p_p[1], p_r[1], p_f1[1]))
+                    print("ACC:{}".format(p_acc))
+                    print("Child label :")
+                    for ind, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+                        print('{}: Precision: {} | Recall: {} | F1: {}'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
+                    print("Child label Accuracy:{}".format(c_acc))
+                    # print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
+                    print("Evaluation Loss:{}".format(loss_av))
+                    
+                    eval_log = open(opt.id +"_eval_log.txt", 'a')
+                    eval_log.write("-----------------------------")
+                    eval_log.write("Fold #%d   Epoch #%d\n" %(kf_index, epoch))
+                    eval_log.write("NFR: Precision: {} | Recall: {} | F1: {}".format(p_p[0], p_r[0], p_f1[0]))
+                    eval_log.write("F: Precision: {} | Recall: {} | F1: {}".format(p_p[1], p_r[1], p_f1[1]))
+                    eval_log.write("Parent Label Accuracy:{}".format(p_acc))
+                    for ind, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+                        eval_log.write('{}: Precision: {} | Recall: {} | F1: {}'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
+                    eval_log.write("Child label Accuracy:{}".format(c_acc))
+                    eval_log.close()
+                    if sma_f1 > best_f1:
+                        best_f1 = sma_f1
+                        torch.save(model.state_dict(), os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(sma_f1), '.pt'])))
+
             if (epoch) % 10 == 0:
                 adjust_learning_rate(optimizer)
 
@@ -171,8 +202,8 @@ def adjust_learning_rate(optimizer, decay_rate=.9):
         a = param_group['lr']
     print('lr:', a)
 
-def cal_metric(y_true, y_pred):
-    ma_p, ma_r, ma_f1, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average='macro')
+def cal_metric(y_true, y_pred, average = 'macro'):
+    ma_p, ma_r, ma_f1, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average=average)
     acc = metrics.accuracy_score(y_true,y_pred)
     return [(ma_p, ma_r, ma_f1), acc]
 
