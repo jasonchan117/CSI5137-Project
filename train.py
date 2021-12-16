@@ -171,7 +171,7 @@ def main():
 
                 eval_log = open(opt.id + "_eval_log.txt", 'a')
                 eval_log.write("-----------------------------")
-                eval_log.write("Fold #%d   Epoch #%d\n" % (kf_index, epoch))
+                eval_log.write("Fold #%d   Epoch #%d\n" % (kf_index-1, epoch))
                 (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, 'macro')
                 # (sma_p, sma_r, sma_f1), sacc = cal_metric(np.concatenate((child_prob_sum_g, parent_prob_sum_g), 1), np.concatenate((child_prob_sum, parent_prob_sum), 1))
 
