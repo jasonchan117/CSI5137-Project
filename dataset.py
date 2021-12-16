@@ -9,7 +9,6 @@ class Dataset(data.Dataset):
 
     # A dictionary that stores the descriptions of labels (shorter version about 20 words each)
     labels_1 = {
-
         "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage",
         "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
         "L"  : "Requirement that limits the risk for legal disputes between a software provider and their users, and the compliance with laws",
@@ -23,7 +22,6 @@ class Dataset(data.Dataset):
         "US" : "Degree to which a software can achieve quantified objectives with effectiveness, efficiency, and satisfaction in a quantified context of use",
         "F"  : "Description of the service that the software must offer. It describes a software or its component."
     }
-
     # A dictionary that stores the descriptions of labels (longer version about 44 words each)
     labels_2 = {
         "A"  : "Description of how likely the software is accessible for a user at a given point in time. It can be expressed as a probability percentage, may also be defined as a percentage of time the system is accessible for operation during some time period.",

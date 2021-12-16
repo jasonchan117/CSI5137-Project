@@ -1,6 +1,8 @@
 from model.attentions.RSABlock import *
 from model.layers.FCLayer import *
 from model.model_utils import LayerNorm
+from transformers import BertTokenizer, BertForMultipleChoice
+from transformers import AdamW
 import torch
 import numpy as np
 import torch.nn as nn
@@ -159,3 +161,36 @@ class RSANModel(nn.Module):
         output_feature = torch.cat((FactAoA_output, LabelAoA_output), dim=-1)
 
         return output_feature
+
+
+class bertModel(nn.Module):
+    def __init__(self, opt):
+        super(bertModel, self).__init__()
+        self.opt = opt
+        self.bert = BertForMultipleChoice.from_pretrained('bert-base-uncased', problem_type="multi_label_classification")
+        self.optim = AdamW(self.bert.parameters(), lr=1e-4)
+
+    def forward(self, text, child_label_des, mode = 'train'):
+        '''
+        @param text: str, a text to be classified
+        @param child_label_des, array of tensor, representing label descriptions based on their tokens' ids in the dictionary
+        @return logits, array of tensor float, logits (maps probabilities ([0, 1]) to R ((-inf, inf))) of being matched with each child label
+        '''
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        decoder = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased-finetuned-mrpc')
+        child_label_des_str = [decoder.decode(label) for label in child_label_des]
+        labels = torch.tensor(0).unsqueeze(0)
+        encoding = tokenizer([text for x in range(0, self.opt.clabel_nb)], child_label_des_str, return_tensors='pt', padding=True)
+        if mode == "train":
+            self.optim.zero_grad()
+            output = self.bert(**{k: v.unsqueeze(0) for k,v in encoding.items()}, labels=labels)
+            loss = output.loss
+            # calculate loss for every parameter that needs grad update
+            loss.backward()
+            # update parameters
+            self.optim.step()
+            # return loss
+            return loss
+        else:
+            output = self.bert(**{k: v.unsqueeze(0) for k,v in encoding.items()}, labels=labels)
+            return list(output.logits[0])
