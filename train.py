@@ -169,19 +169,28 @@ def main():
                 parent_prob_sum_g = np.array(parent_prob_sum_g)
                 child_prob_sum_g = np.array(child_prob_sum_g)
 
-
+                eval_log = open(opt.id + "_eval_log.txt", 'a')
+                eval_log.write("-----------------------------")
+                eval_log.write("Fold #%d   Epoch #%d\n" % (kf_index, epoch))
                 (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, 'macro')
                 # (sma_p, sma_r, sma_f1), sacc = cal_metric(np.concatenate((child_prob_sum_g, parent_prob_sum_g), 1), np.concatenate((child_prob_sum, parent_prob_sum), 1))
 
                 if opt.model_type != 'Bert_c':
                     print("Parent label Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(p_p, p_r, p_f1, p_acc))
+                    eval_log.write(
+                        "Parent label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
                     print("Parent label per class :")
                     (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, None)
+                    eval_log.write("NFR: Precision: {} | Recall: {} | F1: {}\n".format(p_p[0], p_r[0], p_f1[0]))
+                    eval_log.write("F: Precision: {} | Recall: {} | F1: {}\n".format(p_p[1], p_r[1], p_f1[1]))
+                    eval_log.write("Parent Label Accuracy:{}\n".format(p_acc))
                     print("NFR: Precision: {} | Recall: {} | F1: {}".format(p_p[0], p_r[0], p_f1[0]))
                     print("F: Precision: {} | Recall: {} | F1: {}".format(p_p[1], p_r[1], p_f1[1]))
                     print("ACC:{}".format(p_acc))
                 print()
                 (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, 'macro')
+                eval_log.write(
+                    "Child label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(c_p, c_r, c_f1, c_acc))
                 print("Child label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
                 #print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
                 if c_f1 > best_f1:
@@ -192,12 +201,19 @@ def main():
                 print("Child label per class :")
                 (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, None)
                 for ind, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+                    eval_log.write(
+                        '{}: Precision: {} | Recall: {} | F1: {}\n'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
                     print('{}: Precision: {} | Recall: {} | F1: {}'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
+                eval_log.write('{}: Precision: {} | Recall: {} | F1: {}\n'.format('F', c_p[4], c_r[4], c_f1[4]))
                 print('{}: Precision: {} | Recall: {} | F1: {}'.format('F', c_p[4], c_r[4], c_f1[4]))
+                eval_log.write("Child label Accuracy:{}\n".format(c_acc))
                 print("Child label Accuracy:{}".format(c_acc))
                 # print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
 
                 print("Evaluation Loss:{}".format(loss_av))
+                eval_log.close()
+
+
 
             if (epoch) % 10 == 0:
                 adjust_learning_rate(optimizer)
