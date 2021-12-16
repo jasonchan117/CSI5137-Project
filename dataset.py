@@ -70,10 +70,11 @@ class Dataset(data.Dataset):
             # US, SE, O, PE
             labels = ['NFR', 'F', 'US', 'SE', 'O', 'PE', 'A', 'FT', 'L', 'LF',
                                 'MN', 'PO', 'SC']
+            self.label_names = labels
         else:
             labels = ['NFR', 'F', 'A', 'FT', 'L', 'LF',
                                 'MN', 'O', 'PE', 'PO', 'SC', 'SE', 'US']
-
+            self.label_names = labels
         indice = []
         for index, row in df.iterrows():
 
