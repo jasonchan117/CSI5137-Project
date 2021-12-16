@@ -7,7 +7,7 @@ from transformers import BertTokenizer, BertModel, BertForMaskedLM
 
 class Dataset(data.Dataset):
 
-        # A dictionary that stores the descriptions of labels (shorter version about 20 words each)
+    # A dictionary that stores the descriptions of labels (shorter version about 20 words each)
     labels_1 = {
         "A"  : "Description of shoftware's accessibility for a user at a given point in time. Expressed as a probability percentage",
         "FT" : "Property that enables software to continue operating properly in the event of the failure of faults within its components",
@@ -38,7 +38,7 @@ class Dataset(data.Dataset):
         "F"  : "It defines a function of a software or its component, where a function is described as a specification of behavior between inputs and outputs; it may involve calculations, technical details, data manipulation, processing, and other specific functionality that define what is supposed to accomplish"
     }
 
-    
+
     def __init__(self, opt):
         '''
         attributes:
