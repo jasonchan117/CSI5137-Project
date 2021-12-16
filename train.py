@@ -65,9 +65,9 @@ def main():
             model = model.cuda()
 
         optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.wd)
-        # Training start
-        print('----------------------------Training--------------------------------')
         for epoch in range(1, opt.epoch + 1):
+            # Training start
+            print('----------------------------Training--------------------------------')
             loss_av = 0.
             sum = 0.
             model.train()
@@ -152,6 +152,13 @@ def main():
                 print("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
                 print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
                 print("Evaluation Loss:{}".format(loss_av))
+                eval_log = open(opt.id +"_eval_log.txt", 'a')
+                eval_log.write("-----------------------------")
+                eval_log.write("Fold #%d   Epoch #%d\n" %(kf_index, epoch))
+                eval_log.write("Parent label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
+                eval_log.write("Child label : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(c_p, c_r, c_f1, c_acc))
+                eval_log.write("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(sma_p, sma_r, sma_f1, sacc))
+                eval_log.close()
                 if sma_f1 > best_f1:
                     best_f1 = sma_f1
                     torch.save(model.state_dict(), os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(sma_f1), '.pt'])))
