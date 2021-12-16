@@ -215,7 +215,7 @@ def main():
 
 
 
-            if (epoch) % 10 == 0:
+            if (epoch) % 5 == 0:
                 adjust_learning_rate(optimizer)
         print('Best f1:{}'.format(best_f1))
 
