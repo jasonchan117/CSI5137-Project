@@ -11,15 +11,20 @@ class F_HMN(nn.Module):
     def __init__(self, opt):
         super(F_HMN, self).__init__()
         # The bert model object
-        self.bert_description = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
-        self.bert_text = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-base-cased')
+        self.bert_description = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-'+ opt.pretrain +'-cased')
+        self.bert_text = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-'+ opt.pretrain +'-cased')
         self.opt = opt
         self.RSANModel = RSANModel(opt)
-        self.parent_fc = FCLayer(2*768, 2, type="deep")
+        if self.opt.pretrain == 'base':
+            self.parent_fc = FCLayer(2*768, 2, type="deep")
+            self.nf_fc = FCLayer(2 * 768, self.opt.clabel_nb - 1)
+        else:
+            self.parent_fc = FCLayer(2*1024, 2, type="deep")
+            self.nf_fc = FCLayer(2 * 1024, self.opt.clabel_nb - 1)
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
 
-        self.nf_fc = FCLayer(2 * 768, self.opt.clabel_nb - 1)
+
 
     def cal(self,input_list, last_hidden):
         """
@@ -44,7 +49,10 @@ class F_HMN(nn.Module):
         # [B*B,L,H]*[B*B,L,1]
         attention = a*cosine
         # [B, B, L, H]
-        part_list = attention.view(len(input_list), len(input_list), -1, 768)
+        if self.opt.pretrain == 'base':
+            part_list = attention.view(len(input_list), len(input_list), -1, 768)
+        else:
+            part_list = attention.view(len(input_list), len(input_list), -1, 1024)
         # [B,B,L,H]----[B,1,L,H]-----[B,L,H]  all subclasses's attention
         avgpool = F.avg_pool3d(part_list, (len(input_list), 1, 1)).squeeze()
 
@@ -126,7 +134,10 @@ class F_HMN(nn.Module):
 class RSANModel(nn.Module):
     def __init__(self, opt):
         super(RSANModel, self).__init__()
-        self.norm = LayerNorm(768)
+        if opt.pretrain == 'base':
+            self.norm = LayerNorm(768)
+        else:
+            self.norm = LayerNorm(1024)
         self.rsa_blocks = RSABlock(opt)
         self.opt = opt
     def forward(self, inputs, label_inputs):
@@ -167,30 +178,21 @@ class bertModel(nn.Module):
     def __init__(self, opt):
         super(bertModel, self).__init__()
         self.opt = opt
-        self.bert = BertForMultipleChoice.from_pretrained('bert-base-uncased', problem_type="multi_label_classification")
-        self.optim = AdamW(self.bert.parameters(), lr=1e-4)
-
-    def forward(self, text, child_label_des, mode = 'train'):
-        '''
-        @param text: str, a text to be classified
-        @param child_label_des, array of tensor, representing label descriptions based on their tokens' ids in the dictionary
-        @return logits, array of tensor float, logits (maps probabilities ([0, 1]) to R ((-inf, inf))) of being matched with each child label
-        '''
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        decoder = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'bert-base-cased-finetuned-mrpc')
-        child_label_des_str = [decoder.decode(label) for label in child_label_des]
-        labels = torch.tensor(0).unsqueeze(0)
-        encoding = tokenizer([text for x in range(0, self.opt.clabel_nb)], child_label_des_str, return_tensors='pt', padding=True)
-        if mode == "train":
-            self.optim.zero_grad()
-            output = self.bert(**{k: v.unsqueeze(0) for k,v in encoding.items()}, labels=labels)
-            loss = output.loss
-            # calculate loss for every parameter that needs grad update
-            loss.backward()
-            # update parameters
-            self.optim.step()
-            # return loss
-            return loss
+        self.bert = torch.hub.load('huggingface/pytorch-transformers', 'model', 'bert-' + opt.pretrain + '-cased')
+        if opt.pretrain == 'base':
+            hidden = 768
         else:
-            output = self.bert(**{k: v.unsqueeze(0) for k,v in encoding.items()}, labels=labels)
-            return list(output.logits[0])
+            hidden = 1024
+        self.dropout = nn.Dropout(0.5)
+        if opt.model_type == 'Bert_p':
+            output = 2
+        else:
+            output = opt.clabel_nb
+        self.classifier = nn.Linear(hidden, output)
+    def forward(self, text):
+        # (bs, 768 or 1024)
+        text = self.bert(text)[1]
+        #text = self.dropout(text)
+        text = self.classifier(text)
+        return text
+
