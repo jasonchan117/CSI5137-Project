@@ -34,6 +34,10 @@ def main():
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
+    # # parent labels' precision, recall, and accurarcy shape (folds, 2, 3)
+    # p_pra = []
+    # child labels' precision, recall, and accurarcy shape (folds, 1([clabel_nb*[p,r,f,a]]) + 1(avg(F)) + 1(A))
+    c_pra = []
     dataset = Dataset(opt)
     child_label_des = dataset.getLabelDes()
     sample_len = dataset.__len__()
@@ -58,6 +62,11 @@ def main():
         testdataloader = torch.utils.data.DataLoader(val_subset, batch_size=1 , shuffle=True, num_workers=opt.workers)
         print("K-fold:{}".format(kf_index))
 
+        #------- for calculating the average of 10 folds ---------------------
+        #p_pra.append([[0,0,0],[0,0,0]])                                     #|
+        c_pra.append([ [[0,0,0,0] for x in range(0, opt.clabel_nb)] , 0, 0]) #|
+        #------- for calculating the average of 10 folds ---------------------
+
         kf_index += 1
         if opt.model_type == 'HMN':
             model = F_HMN(opt)
@@ -74,7 +83,7 @@ def main():
         print('----------------------------Training--------------------------------')
         for epoch in range(1, opt.epoch + 1):
             loss_av = 0.
-            sum = 0.
+            e_sum = 0.
             model.train()
             print(">>epoch:{}".format(epoch))
             for data in tqdm(traindataloader):
@@ -104,10 +113,10 @@ def main():
                 else:
                     pass
                 loss_av += loss.item()
-                sum += 1
+                e_sum += 1
                 loss.backward()
                 optimizer.step()
-            print('Training Loss:{}'.format(loss_av / sum))
+            print('Training Loss:{}'.format(loss_av / e_sum))
             if epoch % opt.test_freq == 0:
                 print('------------------------Evaluation--------------------------------')
                 model.eval()
@@ -116,7 +125,7 @@ def main():
                 child_prob_sum = []
                 parent_prob_sum_g = []
                 child_prob_sum_g = []
-                sum = 0.
+                e_sum = 0.
                 for data in tqdm(testdataloader):
                     text, parent_label, child_label = data
                     if opt.cuda == True:
@@ -161,8 +170,8 @@ def main():
                         pass
 
                     loss_av += loss.item()
-                    sum += 1
-                loss_av /= sum
+                    e_sum += 1
+                loss_av /= e_sum
 
                 parent_prob_sum = np.array(parent_prob_sum)
                 child_prob_sum = np.array(child_prob_sum)
@@ -198,6 +207,14 @@ def main():
                     torch.save(model.state_dict(),
                                os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(c_f1), '.pt'])))
 
+                # -------store best result of this fold
+                replace_flag = False                 #|
+                if c_f1 > c_pra[kf_index-2][1]:      #|
+                    #replace c_pra[kf_index-1][0]    #|
+                    replace_flag = True              #|
+                    c_pra[kf_index-2][2] = c_acc     #|
+                # -------store best result of this fold
+
                 print("Child label per class :")
                 (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, None)
                 for ind, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
@@ -210,6 +227,12 @@ def main():
                 print("Child label Accuracy:{}".format(c_acc))
                 # print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
 
+                # -------store best result of this fold --------------------------------------------------------------------------------------#
+                if replace_flag == True:
+                    c_pra[kf_index-2][0] = [ [c_p[ind], c_r[ind], c_f1[ind]] for ind, __ in enumerate(dataset.label_names[2:opt.clabel_nb + 1])]
+                    c_pra[kf_index-2][0].append([c_p[4], c_r[4], c_f1[4]])
+                # -------store best result of this fold --------------------------------------------------------------------------------------#
+
                 print("Evaluation Loss:{}".format(loss_av))
                 eval_log.close()
 
@@ -218,6 +241,35 @@ def main():
             if (epoch) % 5 == 0:
                 adjust_learning_rate(optimizer)
         print('Best f1:{}'.format(best_f1))
+    # ------------------calculate the average best precision, recall, and f1, and accurarcy-------------------------------------------------------
+    avg_precisions = []
+    for index in range(0, opt.clabel_nb):
+        avg_precisions.append(sum([c_pra[fold][0][index][0] for fold in range(0,opt.kf)])/opt.kf)
+    avg_recalls = []
+    for index in range(0, opt.clabel_nb):
+        avg_recalls.append(sum([c_pra[fold][0][index][1] for fold in range(0,opt.kf)])/opt.kf)
+    avg_f1s = []
+    for index in range(0, opt.clabel_nb):
+        avg_f1s.append(sum([c_pra[fold][0][index][2] for fold in range(0,opt.kf)])/opt.kf)
+    avg_a = sum([c_pra[fold][2] for fold in range(0,opt.kf)])/opt.kf
+
+    eval_log = open(opt.id + "_eval_log.txt", 'a')
+    counter = 0
+    print("********************************************************************")
+    eval_log.write("********************************************************************\n")
+    for __, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+        print('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
+        eval_log.write('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
+        counter += 1
+    print('Overall Performance on F: Precision: {} | Recall: {} | F1: {}\n'.format(int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
+    eval_log.write('Overall Performance on F: Precision: {} | Recall: {} | F1: {}\n'.format(int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
+
+    print("Average Accuracy: %f"%(avg_a))
+    eval_log.write("Average Accuracy: %f\n"%(avg_a))
+    print("********************************************************************")
+    eval_log.write("********************************************************************\n")
+    # ------------------calculate the average best precision, recall, and f1, and accurarcy-------------------------------------------------------
+
 
 def adjust_learning_rate(optimizer, decay_rate=.9):
     for param_group in optimizer.param_groups:
