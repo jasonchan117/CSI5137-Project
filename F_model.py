@@ -73,11 +73,11 @@ class F_HMN(nn.Module):
         # (12, 768)
         des_embed = des_output[1]
 
-        nf_embed = des_embed[:self.opt.clabel_nb - 1] #
-        f_embed = des_embed[self.opt.clabel_nb - 1]
+        nf_embed = des_embed[1:] #
+        f_embed = des_embed[0]
 
-        nf_per_embed = des_per_embed[:self.opt.clabel_nb - 1]
-        f_per_embed = des_per_embed[self.opt.clabel_nb - 1]
+        nf_per_embed = des_per_embed[1:]
+        f_per_embed = des_per_embed[0]
 
         nf_output = self.cal(nf_per_embed, nf_embed)
 
@@ -107,7 +107,7 @@ class F_HMN(nn.Module):
             # NF classification
             child_prob = []
             if len(b_nf_index) != 0:
-                NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[:self.opt.clabel_nb - 1].repeat(len(b_nf_index), 1, 1))
+                NF_child_label_prob = self.coatt_nf(text_embed[b_nf_index], label_des[1:].repeat(len(b_nf_index), 1, 1))
                 child_prob.append(self.nf_fc(NF_child_label_prob))
             else:
                 child_prob.append([])
@@ -122,7 +122,7 @@ class F_HMN(nn.Module):
         else:
             # NFR
             if F.sigmoid(parent_prob).squeeze(0)[0] > F.sigmoid(parent_prob).squeeze(0)[1]:
-                return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[:self.opt.clabel_nb - 1].unsqueeze(0))))
+                return F.sigmoid(parent_prob), F.sigmoid(self.nf_fc(self.coatt_nf(text_embed, label_des[1:].unsqueeze(0))))
             else:
             # F
                 return F.sigmoid(parent_prob), 0

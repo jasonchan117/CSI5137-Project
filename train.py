@@ -99,7 +99,7 @@ def main():
                     # NF child label loss, child_prob[0] shape: (m, 11)
                     if len(child_prob[0]) > 0:
 
-                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,:opt.clabel_nb - 1])
+                        loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,1:])
                     # F loss, child_prob[1] shape: (n, 1). m + n = bs
                     # if len(child_prob[1]) > 0:
                     #     loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
@@ -142,20 +142,19 @@ def main():
                         p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
                         parent_prob_sum.append(p_p)
                         loss_child = 0.
-
+                        c_p = [0.] * opt.clabel_nb
                         # NFR
                         if parent_prob.squeeze()[0] > parent_prob.squeeze()[1]:
-                            c_p = [0.] * opt.clabel_nb
-                            loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[:opt.clabel_nb - 1].unsqueeze(0))
-                            c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
+
+                            loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[1:].unsqueeze(0))
+                            c_p[child_prob.cpu().squeeze(0).argmax(0) + 1] = 1
                         #else:
                         # F
                         #     loss_child = 0
                         #     c_p[11] = 1
                             child_prob_sum.append(c_p)
                         else:
-                            c_p = [0.] * opt.clabel_nb
-                            c_p[-1] = 1
+                            c_p[0] = 1
                             child_prob_sum.append(c_p)
                         loss = loss_parent + loss_child
                     elif opt.model_type == 'Bert_c':
@@ -217,20 +216,18 @@ def main():
 
                 print("Child label per class :")
                 (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, None)
-                for ind, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+                for ind, name in enumerate(dataset.label_names[1:opt.clabel_nb + 1]):
                     eval_log.write(
                         '{}: Precision: {} | Recall: {} | F1: {}\n'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
                     print('{}: Precision: {} | Recall: {} | F1: {}'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
-                eval_log.write('{}: Precision: {} | Recall: {} | F1: {}\n'.format('F', c_p[4], c_r[4], c_f1[4]))
-                print('{}: Precision: {} | Recall: {} | F1: {}'.format('F', c_p[4], c_r[4], c_f1[4]))
                 eval_log.write("Child label Accuracy:{}\n".format(c_acc))
                 print("Child label Accuracy:{}".format(c_acc))
                 # print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
 
                 # -------store best result of this fold --------------------------------------------------------------------------------------#
                 if replace_flag == True:
-                    c_pra[kf_index-2][0] = [ [c_p[ind], c_r[ind], c_f1[ind]] for ind, __ in enumerate(dataset.label_names[2:opt.clabel_nb + 1])]
-                    c_pra[kf_index-2][0].append([c_p[4], c_r[4], c_f1[4]])
+                    c_pra[kf_index-2][0] = [ [c_p[ind], c_r[ind], c_f1[ind]] for ind, __ in enumerate(dataset.label_names[1:opt.clabel_nb + 1])]
+
                 # -------store best result of this fold --------------------------------------------------------------------------------------#
 
                 print("Evaluation Loss:{}".format(loss_av))
@@ -257,7 +254,7 @@ def main():
     counter = 0
     print("********************************************************************")
     eval_log.write("********************************************************************\n")
-    for __, name in enumerate(dataset.label_names[2:opt.clabel_nb + 1]):
+    for __, name in enumerate(dataset.label_names[1:opt.clabel_nb + 1]):
         print('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
         eval_log.write('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
         counter += 1
