@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--wd', default=0., type=float, help='Weight decay.')
     parser.add_argument('--pretrain', default = 'base', help = 'Pretrain bert version: large, base')
     parser.add_argument('--model_type', default = 'HMN', help = 'Use which model to do the task.(HMN, Bert_p: Parent label classifier, Bert_c: Child label classifier)')
+    parser.add_argument('--output', default = 'log', help = 'The output dir of log.txt')
     opt = parser.parse_args()
 
     kf = KFold(n_splits=opt.kf)
@@ -258,8 +259,6 @@ def main():
         print('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
         eval_log.write('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
         counter += 1
-    print('Overall Performance on F: Precision: {} | Recall: {} | F1: {}\n'.format(int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
-    eval_log.write('Overall Performance on F: Precision: {} | Recall: {} | F1: {}\n'.format(int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
 
     print("Average Accuracy: %f"%(avg_a))
     eval_log.write("Average Accuracy: %f\n"%(avg_a))
