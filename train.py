@@ -36,7 +36,8 @@ def main():
 
     kf = KFold(n_splits=opt.kf)
     # # parent labels' precision, recall, and accurarcy shape (folds, 2, 3)
-    # p_pra = []
+    #p_pra = []
+
     # child labels' precision, recall, and accurarcy shape (folds, 1([clabel_nb*[p,r,f,a]]) + 1(avg(F)) + 1(A))
     c_pra = []
     dataset = Dataset(opt)
@@ -55,6 +56,13 @@ def main():
                 break
     Y = np.array(Y)
 
+    # Storage the average parent label metrics.
+    p_avg_p = []
+    p_best_f1 = [-1, 0]
+    p_avg_r = []
+    p_avg_f = []
+    p_avg_a = []
+    # K split
     for train_index, val_index in kf.split(np.arange(0, sample_len),Y):
 
         train_subset = torch.utils.data.dataset.Subset(dataset, train_index)
@@ -178,7 +186,7 @@ def main():
                 parent_prob_sum_g = np.array(parent_prob_sum_g)
                 child_prob_sum_g = np.array(child_prob_sum_g)
 
-                eval_log = open(opt.id + "_eval_log.txt", 'a')
+                eval_log = open(os.path.join(opt.output, opt.id + "_eval_log.txt"), 'a')
                 eval_log.write("-----------------------------")
                 eval_log.write("Fold #%d   Epoch #%d\n" % (kf_index-1, epoch))
                 (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, 'macro')
@@ -190,6 +198,16 @@ def main():
                         "Parent label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
                     print("Parent label per class :")
                     (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, None)
+
+                    # Store the best parent label results in each fold.
+                    if p_f1[0] > p_best_f1[0]:
+                        p_best_f1[0] = p_f1[0]
+                        p_best_f1[1] = p_f1[1]
+                        p_best_p = p_p
+                        p_best_r = p_r
+                        p_best_a = p_acc
+
+
                     eval_log.write("NFR: Precision: {} | Recall: {} | F1: {}\n".format(p_p[0], p_r[0], p_f1[0]))
                     eval_log.write("F: Precision: {} | Recall: {} | F1: {}\n".format(p_p[1], p_r[1], p_f1[1]))
                     eval_log.write("Parent Label Accuracy:{}\n".format(p_acc))
@@ -239,6 +257,11 @@ def main():
             if (epoch) % 5 == 0:
                 adjust_learning_rate(optimizer)
         print('Best f1:{}'.format(best_f1))
+        if opt.model_type != 'Bert_c':
+            p_avg_f.append(p_best_f1)
+            p_avg_r.append(p_best_r)
+            p_avg_p.append(p_best_p)
+            p_avg_a.append(p_best_a)
     # ------------------calculate the average best precision, recall, and f1, and accurarcy-------------------------------------------------------
     avg_precisions = []
     for index in range(0, opt.clabel_nb):
@@ -251,10 +274,29 @@ def main():
         avg_f1s.append(sum([c_pra[fold][0][index][2] for fold in range(0,opt.kf)])/opt.kf)
     avg_a = sum([c_pra[fold][2] for fold in range(0,opt.kf)])/opt.kf
 
-    eval_log = open(opt.id + "_eval_log.txt", 'a')
+    eval_log = open(os.path.join(opt.output, opt.id + "_eval_log.txt"), 'a')
     counter = 0
+
+
     print("********************************************************************")
     eval_log.write("********************************************************************\n")
+
+    if opt.model_type != 'Bert_c':
+        # 0 is the NFR and 1 is F.
+        sum_p = 0.
+        sum_f = 0.
+        sum_r = 0.
+        sum_a = 0.
+        cou = 0
+        for id, item in enumerate(p_avg_f):
+            cou += 1
+            sum_f += p_avg_f[id][0]
+            sum_p += p_avg_p[id][0]
+            sum_r += p_avg_r[id][0]
+            sum_a += p_avg_a[id][0]
+        print('Overall Performance on NFR: Precision: {} | Recall: {} | F1: {}'.format(sum_p / cou, sum_r / cou, sum_f / cou))
+        eval_log.write('Overall Performance on NFR: Precision: {} | Recall: {} | F1: {}'.format(sum_p / cou, sum_r / cou, sum_f / cou))
+
     for __, name in enumerate(dataset.label_names[1:opt.clabel_nb + 1]):
         print('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
         eval_log.write('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
