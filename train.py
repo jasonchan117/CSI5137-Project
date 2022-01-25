@@ -9,7 +9,7 @@ from F_model import *
 from tqdm import tqdm
 from sklearn import metrics
 import warnings
-
+import sys
 
 def main():
     warnings.filterwarnings('ignore')
@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
     parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
-    parser.add_argument('--wd', default=0., type=float, help='Weight decay.')
+    parser.add_argument('--wd', default=0.01, type=float, help='Weight decay.')
     parser.add_argument('--pretrain', default = 'base', help = 'Pretrain bert version: large, base')
     parser.add_argument('--model_type', default = 'HMN', help = 'Use which model to do the task.(HMN, Bert_p: Parent label classifier, Bert_c: Child label classifier)')
     parser.add_argument('--output', default = 'log', help = 'The output dir of log.txt')
@@ -120,7 +120,9 @@ def main():
                     child_prob = model(text)
                     loss = torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label)
                 else:
-                    pass
+                    # Model type == Bert_p
+                    parent_prob = model(text)
+                    loss = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
                 loss_av += loss.item()
                 e_sum += 1
                 loss.backward()

@@ -112,11 +112,9 @@ class Dataset(data.Dataset):
 
         if len(input_ids) < self.opt.sen_len:
             input_ids = np.append(input_ids, [0 for i in range(self.opt.sen_len - len(input_ids))])
-
-        #print('-->',len(torch.tensor(input_ids[0:self.opt.sen_len])))
+        else:
+            input_ids[self.opt.sen_len - 1] = 102
         return torch.tensor(input_ids[0:self.opt.sen_len]), torch.tensor(parent_label), torch.tensor(child_label)
-
-
 
 
     def __len__(self):
