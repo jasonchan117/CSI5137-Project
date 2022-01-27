@@ -18,7 +18,11 @@ class F_HMN(nn.Module):
         self.RSANModel = RSANModel(opt)
         self.config = BertConfig.from_pretrained('bert-' + opt.pretrain + '-cased')
         self.parent_fc = FCLayer(2 * self.config.hidden_size, 2, type="deep")
-        self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb - 1)
+        if self.opt.clabel_nb == 12:
+            self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb - 1)
+        else:
+            # Including the OTH class
+            self.self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb)
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
 
@@ -109,8 +113,6 @@ class F_HMN(nn.Module):
             #     F_child_label_prob = self.coatt_f(text_embed[b_f_index], label_des[11:].repeat(len(b_f_index), 1, 1))
             #     child_prob.append(self.f_fc(F_child_label_prob))
             # else:
-            child_prob.append([])
-
             return parent_prob, child_prob, b_nf_index, b_f_index
         else:
             # NFR
@@ -174,7 +176,10 @@ class bertModel(nn.Module):
         if opt.model_type == 'Bert_p':
             output = 2
         else:
-            output = opt.clabel_nb
+            if opt.clabel_nb == 12:
+                output = opt.clabel_nb
+            else:
+                output = opt.clabel_nb + 1
         self.classifier = nn.Linear(BertConfig.from_pretrained('bert-' + opt.pretrain + '-cased').hidden_size, output)
     def forward(self, text):
         # (bs, 768 or 1024)

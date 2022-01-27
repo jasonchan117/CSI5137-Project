@@ -70,19 +70,24 @@ class Dataset(data.Dataset):
         self.text_corpus = df.RequirementText.tolist()
         labels = ["NFR","F","US","SE","O","PE","LF","A","SC","MN","L","FT","PO"]
         self.label_names = labels
-        indice = []
+        # indice = []
         for index, row in df.iterrows():
             temp_p = []
             temp_c = []
             for i in labels[0:2]:
                 temp_p.append(float(row[i]))
             for i in labels[1:opt.clabel_nb + 1]:
+
+
                 temp_c.append(float(row[i]))
             self.p_labels.append(temp_p)
 
-            if temp_c != ([0.] * self.opt.clabel_nb) :
-                indice.append(index)
-            # if (self.opt.clabel_nb == 5 and temp_p[0] == 1 and temp_c[:4] != [0., 0., 0., 0.]) or temp_p[1] == 1 or self.opt.clabel_nb != 5:
+            # if temp_c != ([0.] * self.opt.clabel_nb) :
+            #     indice.append(index)
+
+            # If the task is doing the sublabel classification of NFR and it doesn't contain all the sublabels, we need to consider one more class, which is (OTH)other.
+            if temp_c == ([0.] * self.opt.clabel_nb) and self.opt.clabel_nb != 12:
+                temp_c.append(1.)
             self.c_labels.append(temp_c)
 
         for ind, text in enumerate(self.text_corpus):
@@ -93,9 +98,9 @@ class Dataset(data.Dataset):
             tokens_tensor = encodes['input_ids']
             self.input_ids.append(tokens_tensor)
 
-        self.input_ids = np.array(self.input_ids)[indice]
-        self.p_labels = np.array(self.p_labels)[indice]
-        self.c_labels = np.array(self.c_labels)[indice]
+        self.input_ids = np.array(self.input_ids)
+        self.p_labels = np.array(self.p_labels)
+        self.c_labels = np.array(self.c_labels)
 
     def __getitem__(self, index):
         '''

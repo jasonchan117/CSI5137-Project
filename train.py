@@ -50,7 +50,8 @@ def main():
     best_f1 = -1
     Y = []
     for i in dataset.c_labels:
-        for ind, j in enumerate(i[:opt.clabel_nb]):
+        cl = opt.clabel_nb if opt.clabel_nb == 12 else opt.clabel_nb + 1
+        for ind, j in enumerate(i[:cl]):
             if j == 1:
                 Y.append(ind)
                 break
@@ -81,6 +82,7 @@ def main():
             model = F_HMN(opt)
         else:
             model = bertModel(opt)
+        # Loading models
         if opt.resume is not None:
             print("\nLoading model from {}...".format(opt.resume))
             model.load_state_dict(torch.load(opt.resume))
@@ -127,6 +129,8 @@ def main():
                 e_sum += 1
                 loss.backward()
                 optimizer.step()
+
+
             print('Training Loss:{}'.format(loss_av / e_sum))
             if epoch % opt.test_freq == 0:
                 print('------------------------Evaluation--------------------------------')
