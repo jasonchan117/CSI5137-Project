@@ -10,7 +10,7 @@ from tqdm import tqdm
 from sklearn import metrics
 import warnings
 import sys
-
+from eval import *
 def main():
     warnings.filterwarnings('ignore')
     parser = argparse.ArgumentParser()
@@ -21,25 +21,23 @@ def main():
     parser.add_argument('--kf', default=5, type=int, help='Number of kfold')
     parser.add_argument('--epoch', default=100, type=int)
     parser.add_argument('--batchsize', default=8, type=int)
-    parser.add_argument('--id', required=True, help='The id for each training.')
+    parser.add_argument('--id', required=True, help='The id for each training.', type=str)
     parser.add_argument('--sen_len', default=18, type=int, help='The length of the input sentence.')
     parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
-    parser.add_argument('--clabel_nb', type=int, default=12, help='quantity of children labels are desired in classification')
+    parser.add_argument('--clabel_nb', type=int, default=12, help='quantity of children labels are desired in classification, the F is included in this valuable.')
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
     parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
     parser.add_argument('--wd', default=0.01, type=float, help='Weight decay.')
     parser.add_argument('--pretrain', default = 'base', help = 'Pretrain bert version: large, base')
     parser.add_argument('--model_type', default = 'HMN', help = 'Use which model to do the task.(HMN, Bert_p: Parent label classifier, Bert_c: Child label classifier)')
-    parser.add_argument('--output', default = 'log', help = 'The output dir of log.txt')
     opt = parser.parse_args()
+    if not os.path.exists(opt.ckpt):
+        os.makedirs(opt.ckpt)
+    if not os.path.exists(os.path.join(opt.ckpt, opt.id)):
+        os.makedirs(os.path.join(opt.ckpt, opt.id))
 
     kf = KFold(n_splits=opt.kf)
-    # # parent labels' precision, recall, and accurarcy shape (folds, 2, 3)
-    #p_pra = []
-
-    # child labels' precision, recall, and accurarcy shape (folds, 1([clabel_nb*[p,r,f,a]]) + 1(avg(F)) + 1(A))
-    c_pra = []
     dataset = Dataset(opt)
     child_label_des = dataset.getLabelDes()
     sample_len = dataset.__len__()
@@ -47,7 +45,6 @@ def main():
         child_label_des = child_label_des.cuda()
     # Cross validation
     kf_index = 1
-    best_f1 = -1
     Y = []
     for i in dataset.c_labels:
         cl = opt.clabel_nb if opt.clabel_nb == 12 else opt.clabel_nb + 1
@@ -56,13 +53,7 @@ def main():
                 Y.append(ind)
                 break
     Y = np.array(Y)
-
-    # Storage the average parent label metrics.
-    p_avg_p = []
-    p_best_f1 = [-1, 0]
-    p_avg_r = []
-    p_avg_f = []
-    p_avg_a = []
+    eval_entity = Evaluation(opt, dataset.label_names)
     # K split
     for train_index, val_index in kf.split(np.arange(0, sample_len),Y):
 
@@ -74,7 +65,7 @@ def main():
 
         #------- for calculating the average of 10 folds ---------------------
         #p_pra.append([[0,0,0],[0,0,0]])                                     #|
-        c_pra.append([ [[0,0,0,0] for x in range(0, opt.clabel_nb)] , 0, 0]) #|
+        # c_pra.append([ [[0,0,0,0] for x in range(0, opt.clabel_nb)] , 0, 0]) #|
         #------- for calculating the average of 10 folds ---------------------
 
         kf_index += 1
@@ -120,7 +111,8 @@ def main():
                         loss = loss_parent
                 elif opt.model_type =='Bert_c':
                     child_prob = model(text)
-                    loss = torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label)
+                    # Only on the child label. If clabel_nb is not equal to 12, then it will include a other label.
+                    loss = torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label[:, 1:])
                 else:
                     # Model type == Bert_p
                     parent_prob = model(text)
@@ -129,12 +121,13 @@ def main():
                 e_sum += 1
                 loss.backward()
                 optimizer.step()
-
-
             print('Training Loss:{}'.format(loss_av / e_sum))
+
+
             if epoch % opt.test_freq == 0:
                 print('------------------------Evaluation--------------------------------')
                 model.eval()
+                # The arrays that store the ground truth and predicted results.
                 loss_av = 0.
                 parent_prob_sum = []
                 child_prob_sum = []
@@ -143,45 +136,41 @@ def main():
                 e_sum = 0.
                 for data in tqdm(testdataloader):
                     text, parent_label, child_label = data
+                    parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
+                    child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
+                    p_p = [0.] * 2
+                    if opt.clabel_nb == 12:
+                        c_p = [0.] * (opt.clabel_nb - 1)
+                    else:
+                        c_p = [0.] * opt.clabel_nb
                     if opt.cuda == True:
                         text, parent_label, child_label= text.cuda(), parent_label.cuda(), child_label.cuda()
                     if opt.model_type == 'HMN':
                         parent_prob, child_prob = model(text, child_label_des, parent_label, mode = 'eval')
-
-                        parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
-                        # if parent_label.cpu().squeeze(0).numpy()[0] == 1:
-                        child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
-
                         loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
-                        p_p = [0.] * 2
                         p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
                         parent_prob_sum.append(p_p)
                         loss_child = 0.
-                        c_p = [0.] * opt.clabel_nb
                         # NFR
                         if parent_prob.squeeze()[0] > parent_prob.squeeze()[1]:
-
                             loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label.squeeze()[1:].unsqueeze(0))
                             c_p[child_prob.cpu().squeeze(0).argmax(0) + 1] = 1
-                        #else:
-                        # F
-                        #     loss_child = 0
-                        #     c_p[11] = 1
                             child_prob_sum.append(c_p)
                         else:
                             c_p[0] = 1
                             child_prob_sum.append(c_p)
                         loss = loss_parent + loss_child
                     elif opt.model_type == 'Bert_c':
-                        c_p = [0.] * opt.clabel_nb
                         child_prob = model(text)
                         c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
                         child_prob_sum.append(c_p)
-                        child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
-                        loss = torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label)
-
+                        loss = torch.nn.functional.binary_cross_entropy_with_logits(child_prob, child_label[:,1:])
                     else:
-                        pass
+                        # Bert_p
+                        parent_prob = model(text)
+                        p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
+                        parent_prob_sum.append(p_p)
+                        loss = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
 
                     loss_av += loss.item()
                     e_sum += 1
@@ -192,139 +181,30 @@ def main():
                 parent_prob_sum_g = np.array(parent_prob_sum_g)
                 child_prob_sum_g = np.array(child_prob_sum_g)
 
-                eval_log = open(os.path.join(opt.output, opt.id + "_eval_log.txt"), 'a')
+
+                eval_log = open(os.path.join(opt.ckpt, opt.id, 'eval_log.txt'), 'a')
                 eval_log.write("-----------------------------")
                 eval_log.write("Fold #%d   Epoch #%d\n" % (kf_index-1, epoch))
-                (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, 'macro')
-                # (sma_p, sma_r, sma_f1), sacc = cal_metric(np.concatenate((child_prob_sum_g, parent_prob_sum_g), 1), np.concatenate((child_prob_sum, parent_prob_sum), 1))
 
-                if opt.model_type != 'Bert_c':
-                    print("Parent label Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(p_p, p_r, p_f1, p_acc))
-                    eval_log.write(
-                        "Parent label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(p_p, p_r, p_f1, p_acc))
-                    print("Parent label per class :")
-                    (p_p, p_r, p_f1), p_acc = cal_metric(parent_prob_sum_g, parent_prob_sum, None)
+                store_flag = eval_entity.record(parent_prob_sum, child_prob_sum, parent_prob_sum_g, child_prob_sum_g, eval_log, kf_index - 2)
 
-                    # Store the best parent label results in each fold.
-                    if p_f1[0] > p_best_f1[0]:
-                        p_best_f1[0] = p_f1[0]
-                        p_best_f1[1] = p_f1[1]
-                        p_best_p = p_p
-                        p_best_r = p_r
-                        p_best_a = p_acc
-
-
-                    eval_log.write("NFR: Precision: {} | Recall: {} | F1: {}\n".format(p_p[0], p_r[0], p_f1[0]))
-                    eval_log.write("F: Precision: {} | Recall: {} | F1: {}\n".format(p_p[1], p_r[1], p_f1[1]))
-                    eval_log.write("Parent Label Accuracy:{}\n".format(p_acc))
-                    print("NFR: Precision: {} | Recall: {} | F1: {}".format(p_p[0], p_r[0], p_f1[0]))
-                    print("F: Precision: {} | Recall: {} | F1: {}".format(p_p[1], p_r[1], p_f1[1]))
-                    print("ACC:{}".format(p_acc))
-                print()
-                (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, 'macro')
-                eval_log.write(
-                    "Child label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}\n".format(c_p, c_r, c_f1, c_acc))
-                print("Child label Summary: Precision: {} | Recall: {} | F1: {} | Acc : {}".format(c_p, c_r, c_f1, c_acc))
-                #print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
-                if c_f1 > best_f1:
-                    best_f1 = c_f1
-                    torch.save(model.state_dict(),
-                               os.path.join(opt.ckpt, ''.join([opt.id, '_', str(epoch), '_', str(c_f1), '.pt'])))
-
-                # -------store best result of this fold
-                replace_flag = False                 #|
-                if c_f1 > c_pra[kf_index-2][1]:      #|
-                    #replace c_pra[kf_index-1][0]    #|
-                    replace_flag = True              #|
-                    c_pra[kf_index-2][2] = c_acc     #|
-                # -------store best result of this fold
-
-                print("Child label per class :")
-                (c_p, c_r, c_f1), c_acc = cal_metric(child_prob_sum_g, child_prob_sum, None)
-                for ind, name in enumerate(dataset.label_names[1:opt.clabel_nb + 1]):
-                    eval_log.write(
-                        '{}: Precision: {} | Recall: {} | F1: {}\n'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
-                    print('{}: Precision: {} | Recall: {} | F1: {}'.format(name, c_p[ind], c_r[ind], c_f1[ind]))
-                eval_log.write("Child label Accuracy:{}\n".format(c_acc))
-                print("Child label Accuracy:{}".format(c_acc))
-                # print("Summary : Precision: {} | Recall: {} | F1: {} | Acc : {}".format(sma_p, sma_r, sma_f1, sacc))
-
-                # -------store best result of this fold --------------------------------------------------------------------------------------#
-                if replace_flag == True:
-                    c_pra[kf_index-2][0] = [ [c_p[ind], c_r[ind], c_f1[ind]] for ind, __ in enumerate(dataset.label_names[1:opt.clabel_nb + 1])]
-
-                # -------store best result of this fold --------------------------------------------------------------------------------------#
+                if store_flag != False:
+                    torch.save(model.state_dict(),os.path.join(opt.ckpt, opt.id, ''.join([ 'Fold','_',str(kf_index-1),'_', 'epoch','_',str(epoch), '_', str(store_flag), '.pt'])))
 
                 print("Evaluation Loss:{}".format(loss_av))
                 eval_log.close()
 
-
-
             if (epoch) % 5 == 0:
                 adjust_learning_rate(optimizer)
-        print('Best f1:{}'.format(best_f1))
-        if opt.model_type != 'Bert_c':
-            p_avg_f.append(p_best_f1)
-            p_avg_r.append(p_best_r)
-            p_avg_p.append(p_best_p)
-            p_avg_a.append(p_best_a)
-    # ------------------calculate the average best precision, recall, and f1, and accurarcy-------------------------------------------------------
-    avg_precisions = []
-    for index in range(0, opt.clabel_nb):
-        avg_precisions.append(sum([c_pra[fold][0][index][0] for fold in range(0,opt.kf)])/opt.kf)
-    avg_recalls = []
-    for index in range(0, opt.clabel_nb):
-        avg_recalls.append(sum([c_pra[fold][0][index][1] for fold in range(0,opt.kf)])/opt.kf)
-    avg_f1s = []
-    for index in range(0, opt.clabel_nb):
-        avg_f1s.append(sum([c_pra[fold][0][index][2] for fold in range(0,opt.kf)])/opt.kf)
-    avg_a = sum([c_pra[fold][2] for fold in range(0,opt.kf)])/opt.kf
 
-    eval_log = open(os.path.join(opt.output, opt.id + "_eval_log.txt"), 'a')
-    counter = 0
-
-
-    print("********************************************************************")
-    eval_log.write("********************************************************************\n")
-
-    if opt.model_type != 'Bert_c':
-        # 0 is the NFR and 1 is F.
-        sum_p = 0.
-        sum_f = 0.
-        sum_r = 0.
-        sum_a = 0.
-        cou = 0
-        for id, item in enumerate(p_avg_f):
-            cou += 1
-            sum_f += p_avg_f[id][0]
-            sum_p += p_avg_p[id][0]
-            sum_r += p_avg_r[id][0]
-            sum_a += p_avg_a[id][0]
-        print('Overall Performance on NFR: Precision: {} | Recall: {} | F1: {}'.format(sum_p / cou, sum_r / cou, sum_f / cou))
-        eval_log.write('Overall Performance on NFR: Precision: {} | Recall: {} | F1: {}'.format(sum_p / cou, sum_r / cou, sum_f / cou))
-
-    for __, name in enumerate(dataset.label_names[1:opt.clabel_nb + 1]):
-        print('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
-        eval_log.write('Overall Performance on {}: Precision: {} | Recall: {} | F1: {}\n'.format(name, int(avg_precisions[counter]*100)/100, int(avg_recalls[counter]*100)/100, int(avg_f1s[counter]*100)/100))
-        counter += 1
-
-    print("Average Accuracy: %f"%(avg_a))
-    eval_log.write("Average Accuracy: %f\n"%(avg_a))
-    print("********************************************************************")
-    eval_log.write("********************************************************************\n")
-    # ------------------calculate the average best precision, recall, and f1, and accurarcy-------------------------------------------------------
-
-
+    eval_log = open(os.path.join(opt.ckpt, opt.id, 'eval_log.txt'), 'a')
+    eval_entity.cal_overall_metric(eval_log)
+    eval_log.close()
 def adjust_learning_rate(optimizer, decay_rate=.9):
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * decay_rate
         a = param_group['lr']
     print('lr:', a)
-
-def cal_metric(y_true, y_pred, average = 'macro'):
-    ma_p, ma_r, ma_f1, _ = metrics.precision_recall_fscore_support(y_true, y_pred, average=average)
-    acc = metrics.accuracy_score(y_true,y_pred)
-    return [(ma_p, ma_r, ma_f1), acc]
 
 if __name__ == "__main__":
     main()

@@ -177,9 +177,9 @@ class bertModel(nn.Module):
             output = 2
         else:
             if opt.clabel_nb == 12:
-                output = opt.clabel_nb
+                output = opt.clabel_nb - 1
             else:
-                output = opt.clabel_nb + 1
+                output = opt.clabel_nb
         self.classifier = nn.Linear(BertConfig.from_pretrained('bert-' + opt.pretrain + '-cased').hidden_size, output)
     def forward(self, text):
         # (bs, 768 or 1024)
