@@ -22,7 +22,7 @@ class F_HMN(nn.Module):
             self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb - 1)
         else:
             # Including the OTH class
-            self.self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb)
+            self.nf_fc = FCLayer(2 * self.config.hidden_size, self.opt.clabel_nb)
         self.coatt_nf = RSANModel(opt)
         self.coatt_f = RSANModel(opt)
 

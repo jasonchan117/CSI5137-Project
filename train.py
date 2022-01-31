@@ -7,6 +7,7 @@ from dataset import *
 from sklearn.model_selection import StratifiedKFold as KFold
 from F_model import *
 from tqdm import tqdm
+from pytorch_transformers import AdamW
 from sklearn import metrics
 import warnings
 import sys
@@ -16,20 +17,20 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='promise_nfr.csv', help='The dataset file')
     parser.add_argument('--resume', type=str, default=None, help='resume model')
-    parser.add_argument('--ckpt', type=str, default='ckpt/', help='The dir that save the model.')
-    parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
+    parser.add_argument('--ckpt', type=str, default='ckpt', help='The dir that save the model.')
+    parser.add_argument('--lr', default=2e-5, type=float, help='learning rate')
     parser.add_argument('--kf', default=5, type=int, help='Number of kfold')
     parser.add_argument('--epoch', default=100, type=int)
     parser.add_argument('--batchsize', default=8, type=int)
     parser.add_argument('--id', required=True, help='The id for each training.', type=str)
-    parser.add_argument('--sen_len', default=18, type=int, help='The length of the input sentence.')
+    parser.add_argument('--sen_len', default=50, type=int, help='The length of the input sentence.')
     parser.add_argument('--workers', type=int, default=0, help='number of data loading workers')
     parser.add_argument('--clabel_nb', type=int, default=12, help='quantity of children labels are desired in classification, the F is included in this valuable.')
     parser.add_argument('--cuda', action='store_true', help='Use GPU to accelerate the training or not.')
     parser.add_argument('--test_freq', default=1, type=int)
-    parser.add_argument('--des_ver', default=1, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
+    parser.add_argument('--des_ver', default=2, type=int, help='Use which version of child label description, 1 is the short version, 2 is the long version.')
     parser.add_argument('--wd', default=0.01, type=float, help='Weight decay.')
-    parser.add_argument('--pretrain', default = 'base', help = 'Pretrain bert version: large, base')
+    parser.add_argument('--pretrain', default = 'large', help = 'Pretrain bert version: large, base')
     parser.add_argument('--model_type', default = 'HMN', help = 'Use which model to do the task.(HMN, Bert_p: Parent label classifier, Bert_c: Child label classifier)')
     opt = parser.parse_args()
     if not os.path.exists(opt.ckpt):
@@ -62,12 +63,6 @@ def main():
         traindataloader = torch.utils.data.DataLoader(train_subset, batch_size=opt.batchsize , shuffle=True, num_workers=opt.workers)
         testdataloader = torch.utils.data.DataLoader(val_subset, batch_size=1 , shuffle=True, num_workers=opt.workers)
         print("K-fold:{}".format(kf_index))
-
-        #------- for calculating the average of 10 folds ---------------------
-        #p_pra.append([[0,0,0],[0,0,0]])                                     #|
-        # c_pra.append([ [[0,0,0,0] for x in range(0, opt.clabel_nb)] , 0, 0]) #|
-        #------- for calculating the average of 10 folds ---------------------
-
         kf_index += 1
         if opt.model_type == 'HMN':
             model = F_HMN(opt)
@@ -80,7 +75,7 @@ def main():
         if opt.cuda == True:
             model = model.cuda()
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=opt.lr, weight_decay=opt.wd)
+        optimizer = AdamW(model.parameters(), lr=opt.lr, weight_decay=opt.wd)
         # Training start
         print('----------------------------Training--------------------------------')
         for epoch in range(1, opt.epoch + 1):
@@ -102,10 +97,6 @@ def main():
                     if len(child_prob[0]) > 0:
 
                         loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[0], child_label[b_nf_index,1:])
-                    # F loss, child_prob[1] shape: (n, 1). m + n = bs
-                    # if len(child_prob[1]) > 0:
-                    #     loss_child += torch.nn.functional.binary_cross_entropy_with_logits(child_prob[1], child_label[b_f_index,11:])
-
                         loss = loss_parent + loss_child
                     else:
                         loss = loss_parent
@@ -139,13 +130,14 @@ def main():
                     parent_prob_sum_g.append(parent_label.cpu().squeeze(0).numpy())
                     child_prob_sum_g.append(child_label.cpu().squeeze(0).numpy())
                     p_p = [0.] * 2
-                    if opt.clabel_nb == 12:
-                        c_p = [0.] * (opt.clabel_nb - 1)
-                    else:
-                        c_p = [0.] * opt.clabel_nb
+
                     if opt.cuda == True:
                         text, parent_label, child_label= text.cuda(), parent_label.cuda(), child_label.cuda()
                     if opt.model_type == 'HMN':
+                        if opt.clabel_nb == 12:
+                            c_p = [0.] * opt.clabel_nb
+                        else:
+                            c_p = [0.] * (opt.clabel_nb + 1)
                         parent_prob, child_prob = model(text, child_label_des, parent_label, mode = 'eval')
                         loss_parent = torch.nn.functional.binary_cross_entropy_with_logits(parent_prob, parent_label)
                         p_p[parent_prob.cpu().squeeze(0).argmax(0)] = 1
@@ -161,6 +153,10 @@ def main():
                             child_prob_sum.append(c_p)
                         loss = loss_parent + loss_child
                     elif opt.model_type == 'Bert_c':
+                        if opt.clabel_nb == 12:
+                            c_p = [0.] * (opt.clabel_nb - 1)
+                        else:
+                            c_p = [0.] * opt.clabel_nb
                         child_prob = model(text)
                         c_p[child_prob.cpu().squeeze(0).argmax(0)] = 1
                         child_prob_sum.append(c_p)
@@ -194,17 +190,18 @@ def main():
                 print("Evaluation Loss:{}".format(loss_av))
                 eval_log.close()
 
-            if (epoch) % 5 == 0:
+            if (epoch) % 10 == 0:
                 adjust_learning_rate(optimizer)
 
     eval_log = open(os.path.join(opt.ckpt, opt.id, 'eval_log.txt'), 'a')
     eval_entity.cal_overall_metric(eval_log)
     eval_log.close()
+
 def adjust_learning_rate(optimizer, decay_rate=.9):
     for param_group in optimizer.param_groups:
         param_group['lr'] = param_group['lr'] * decay_rate
         a = param_group['lr']
-    print('lr:', a)
+    print('lr update:', a)
 
 if __name__ == "__main__":
     main()

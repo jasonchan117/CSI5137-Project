@@ -77,17 +77,13 @@ class Dataset(data.Dataset):
             for i in labels[0:2]:
                 temp_p.append(float(row[i]))
             for i in labels[1:opt.clabel_nb + 1]:
-
-
                 temp_c.append(float(row[i]))
             self.p_labels.append(temp_p)
-
-            # if temp_c != ([0.] * self.opt.clabel_nb) :
-            #     indice.append(index)
-
+            if self.opt.clabel_nb != 12:
+                temp_c.append(0.)
+                if temp_c == [0.] * (self.opt.clabel_nb + 1):
+                    temp_c[-1] = 1.
             # If the task is doing the sublabel classification of NFR and it doesn't contain all the sublabels, we need to consider one more class, which is (OTH)other.
-            if temp_c == ([0.] * self.opt.clabel_nb) and self.opt.clabel_nb != 12:
-                temp_c.append(1.)
             self.c_labels.append(temp_c)
 
         for ind, text in enumerate(self.text_corpus):
